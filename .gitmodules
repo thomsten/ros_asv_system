@@ -1,0 +1,3 @@
+[submodule "asv_simulator"]
+	path = asv_simulator
+	url = git@github.com:thomsten/asv_simulator.git

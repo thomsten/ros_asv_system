@@ -1,0 +1,32 @@
+<launch>
+  <group ns="obstacles">
+    <group ns="ship1">
+      <node pkg="asv_simulator"
+            name="ship1"
+            type="asv_simulator_node"
+            respawn="false"
+            output="screen">
+        <rosparam param="initial_state">[500.0, 500.0, 1.0, 2.0, 0.0, 0.0]</rosparam>
+      </node>
+      <node pkg="asv_simulator"
+            name="LOSNode"
+            type="ctrl_LOS_guidance.py"
+            respawn="false"
+            output="screen">
+        <rosparam command="load" file="$(find asv_simulator)/config/waypoint_list1.yaml" />
+      </node>
+
+      <param name="robot_description" textfile="$(find asv_simulator)/config/models/ship1.urdf" />
+      <node pkg="robot_state_publisher"
+            type="state_publisher"
+            name="tf_broadcaster" />
+    </group>
+  </group>
+
+
+  <node pkg="asv_obstacle_tracker"
+        name="obstacle_tracker_node"
+        type="obstacle_tracker_node.py"
+        respawn="false"
+        output="screen"/>
+</launch>
