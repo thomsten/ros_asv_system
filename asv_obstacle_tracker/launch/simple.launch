@@ -6,7 +6,7 @@
             type="asv_simulator_node"
             respawn="false"
             output="screen">
-        <rosparam param="initial_state">[500.0, 500.0, 1.0, 2.0, 0.0, 0.0]</rosparam>
+        <rosparam param="initial_state">[200.0, 250.0, 3.1415, 2.0, 0.0, 0.0]</rosparam>
       </node>
       <node pkg="asv_simulator"
             name="LOSNode"
@@ -17,9 +17,10 @@
       </node>
 
       <param name="robot_description" textfile="$(find asv_simulator)/config/models/ship1.urdf" />
+
       <node pkg="robot_state_publisher"
             type="state_publisher"
-            name="tf_broadcaster" />
+            name="tf_broadcaster2" />
     </group>
   </group>
 

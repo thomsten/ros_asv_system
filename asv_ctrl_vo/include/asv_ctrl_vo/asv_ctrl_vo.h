@@ -6,6 +6,7 @@
 #include "asv_msgs/State.h"
 #include "nav_msgs/OccupancyGrid.h"
 #include "nav_msgs/Odometry.h"
+#include "visualization_msgs/Marker.h"
 
 class VelocityObstacle
 {
@@ -16,11 +17,14 @@ class VelocityObstacle
   void initialize(std::vector<asv_msgs::State> *obstacles);
   void update(const ros::Publisher *og_pub);
   void updateAsvState(const nav_msgs::Odometry::ConstPtr &msg);
+  void initializeMarker(visualization_msgs::Marker *marker);
+  int getAngRes() {return ANG_SAMPLES_;};
+  int getVelRes() {return VEL_SAMPLES_;};
 
  private:
 
   void setPoint(const double &px, const double &py, int val);
-  void setVelocity(const double &u, const double &theta, int val);
+  void setVelocity(const double &u, const double &theta, int val, const int &ui, const int &ti);
   void updateVelocityGrid();
   void clearVelocityGrid();
 
@@ -28,11 +32,11 @@ class VelocityObstacle
                           const double &theta,
                           const Eigen::Vector2d &lb,
                           const Eigen::Vector2d &rb,
-                          const Eigen::Vector3d &obstacle_twist);
+                          const Eigen::Vector2d &vb);
   bool violatesColregs(const double &u,
                        const double &theta,
                        const Eigen::Vector3d &obstacle_pose,
-                       const Eigen::Vector3d &obstacle_twist);
+                       const Eigen::Vector2d &vb);
 
 
   const double RADIUS_;
@@ -56,6 +60,7 @@ class VelocityObstacle
   // void obstacleSubCallback(const nav_msgs::Odometry::ConstPtr &msg);
 
   nav_msgs::OccupancyGrid vg_;
+  visualization_msgs::Marker *marker_;
 };
 
 

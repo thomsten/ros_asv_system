@@ -3,6 +3,8 @@
 
 #include "asv_msgs/StateArray.h"
 #include "nav_msgs/Odometry.h"
+#include "visualization_msgs/Marker.h"
+
 #include <vector>
 
 class VelocityObstacleNode
@@ -13,6 +15,7 @@ class VelocityObstacleNode
 
   void initialize(ros::Publisher *og_pub,
                   ros::Publisher *cmd_pub,
+                  ros::Publisher *mk_pub,
                   ros::Subscriber *obstacle_sub,
                   ros::Subscriber *asv_sub,
                   VelocityObstacle *vo);
@@ -21,6 +24,11 @@ class VelocityObstacleNode
   void obstacleCallback(const asv_msgs::StateArray::ConstPtr &msg);
 
  private:
+
+  void clearMarkers();
+  void initializeMarker();
+
+  visualization_msgs::Marker marker_;
 
   VelocityObstacle *vo_;
 
@@ -32,6 +40,8 @@ class VelocityObstacleNode
   // ROS API
   ros::Publisher *cmd_pub_;
   ros::Publisher *og_pub_;
+  ros::Publisher *mk_pub_;
+
 
   ros::Subscriber *obstacle_sub_;
   ros::Subscriber *asv_sub_;
