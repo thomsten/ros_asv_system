@@ -18,13 +18,10 @@ VelocityObstacle::VelocityObstacle() : EDGE_SAMPLES_(10),
                                        VEL_SAMPLES_(41),
                                        ANG_SAMPLES_(101),
                                        GRID_RES_(0.1),
-                                       RADIUS_(10.0),
+                                       RADIUS_(5.0),
                                        MAX_VEL_(4.0),
                                        MAX_ANG_(2.0944)
 {
-  VG_XLIM_ = 0;
-  VG_YLIM_ = 0;
-
   asv_pose_ = Eigen::Vector3d(0.0, 0.0, 0.0);
   asv_twist_ = Eigen::Vector3d(0.0, 0.0, 0.0);
 
@@ -39,45 +36,34 @@ void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles)
 
   ROS_INFO("Initializing VO-node...");
 
-  VG_XLIM_ = (int) 2*(MAX_VEL_/GRID_RES_ + 1);
-  VG_YLIM_ = VG_XLIM_;//(int) 2*((MAX_VEL_/GRID_RES_)*sin(MAX_ANG_) + 1);
-
-  ROS_INFO("VG_XLIM: %d, VG_YLIM: %d", VG_XLIM_, VG_YLIM_);
-
-  vg_.header.frame_id = std::string("asv");
-  vg_.info.map_load_time = ros::Time::now();
-  vg_.info.resolution = GRID_RES_*10;
-  vg_.info.width = VG_XLIM_;
-  vg_.info.height = VG_YLIM_;
-  // Set origin of window to be "in the middle"
-  vg_.info.origin.position.x = - 0.5 * VG_XLIM_ * GRID_RES_*10;
-  vg_.info.origin.position.y = - 0.5 * VG_YLIM_ * GRID_RES_*10;
-  vg_.info.origin.orientation.w = 1.0;
-
-  vg_.data.resize(VG_XLIM_*VG_YLIM_);
+  vo_grid_.resize(ANG_SAMPLES_*VEL_SAMPLES_);
 
   obstacles_ = obstacles;
 
   ROS_INFO("Initialization complete!");
 }
 
-void VelocityObstacle::update(const ros::Publisher *og_pub)
+void VelocityObstacle::update()
 {
   clearVelocityGrid();
   updateVelocityGrid();
-  og_pub->publish(vg_);
 }
 
 void VelocityObstacle::updateVelocityGrid()
 {
+  const double RAD2DEG = 180.0/M_PI;
+
   double u0 = 0, u = 0;
   double theta0 = -MAX_ANG_ + asv_pose_[2], t = 0;
   double du = MAX_VEL_/VEL_SAMPLES_;
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
 
-  for (std::vector<asv_msgs::State>::iterator it = obstacles_->begin();
-       it != obstacles_->end();
-       ++it) {
+  Eigen::Vector2d va_ref = Eigen::Vector2d(u_d_,
+                                           psi_d_);
+  Eigen::Vector2d v_new_ref = Eigen::Vector2d(0.0,0.0);
+
+  std::vector<asv_msgs::State>::iterator it;
+  for (it = obstacles_->begin(); it != obstacles_->end(); ++it) {
 
     Eigen::Vector3d obstacle_pose = Eigen::Vector3d(it->x, it->y, it->psi);
     Eigen::Vector3d obstacle_twist = Eigen::Vector3d(it->u, it->v, it->r);
@@ -88,23 +74,16 @@ void VelocityObstacle::updateVelocityGrid()
 
     // Left and right bounds pointing inwards to the VO. (Guy et. al. 2009)
     Eigen::Vector2d lb, rb;
-
     pab = pab/pab.norm();
-
     rot2d(pab,  alpha - 0.5*M_PI, lb);
     rot2d(pab, -alpha + 0.5*M_PI, rb);
-
-    const double RAD2DEG = 180.0/M_PI;
 
     Eigen::Vector2d vb;
     rot2d(obstacle_twist.head(2), obstacle_pose[2], vb);
 
-    // ROS_INFO("lb: (%.3f, %.3f), rb: (%.3f, %.3f), vb: (%.2f, %.2f), nub: (%.2f, %.2f)",
-    //          lb[0], lb[1], rb[0], rb[1], vb[0], vb[1], obstacle_twist[0], obstacle_twist[1]);
-    // ROS_INFO("ASV Heading: %.2f, Obstacle Heading: %.2f, alpha = %.2f",
-    //          asv_pose_[2]*RAD2DEG,
-    //          obstacle_pose[2]*RAD2DEG,
-    //          alpha*RAD2DEG);
+    // Objective function value. By minimizing this, an "optimal" velocity may be selected.
+    double objval = 0.0;
+
 
     for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it){
       for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it){
@@ -112,18 +91,23 @@ void VelocityObstacle::updateVelocityGrid()
         u = u0 + u_it*du;
         t = theta0 + t_it*dtheta;
 
+        v_new_ref[0] = u;
+        v_new_ref[1] = t;
+
+        objval = (v_new_ref - va_ref).norm() / 16.0;
+
         if (inVelocityObstacle(u, t, lb, rb, vb))
           {
-            setVelocity(u, t, 100, u_it, t_it);
+            setVelocity(u_it, t_it, 1.0);
           }
         else if (violatesColregs(u, t, obstacle_pose, vb))
           {
-            setVelocity(u, t, 75, u_it, t_it);
+            setVelocity(u_it, t_it, 0.75);
           }
         else
           {
             // @todo This line will cause a bug if multiple obstacles are present.
-            setVelocity(u, t, 25, u_it, t_it);
+            setVelocity(u_it, t_it, objval);
           }
       }
     }
@@ -182,22 +166,20 @@ bool VelocityObstacle::violatesColregs(const double &u,
 
 void VelocityObstacle::clearVelocityGrid()
 {
-  for (int i=0; i<VG_XLIM_*VG_YLIM_; ++i)
-    vg_.data[i] = 0;
+  for (int i=0; i<vo_grid_.size(); ++i)
+    vo_grid_[i] = 0.0;
 }
 
-void VelocityObstacle::setVelocity(const double &u, const double &theta, int val, const int &ui, const int &ti)
+void VelocityObstacle::setVelocity(const int &ui, const int &ti, const double &val)
 {
   if (marker_ != NULL)
     {
       // Convert from scalar value to RGB heatmap: https://www.particleincell.com/2014/colormap/
-      double val_norm = (double) val;
-      // Invert range and group
-      val_norm = 4.0 * (100. - val_norm) * 0.01;
+      double newval = 4*(1.0 - val);
 
       // Get integer part
-      double group = floor(val_norm);
-      double frac = floor((val_norm - group));
+      double group = floor(newval);
+      double frac = (newval - group);
 
       double r=0.0, g=0.0, b=0.0;
 
@@ -220,46 +202,15 @@ void VelocityObstacle::setVelocity(const double &u, const double &theta, int val
           break;
         }
 
-
-      // ROS_INFO("VAL: %.1f, %d, (%.1f, %.1f, %.1f)", val_norm, val, r, g, b);
-
-
       marker_->colors[ui*ANG_SAMPLES_ + ti].r = r;
       marker_->colors[ui*ANG_SAMPLES_ + ti].g = g;
       marker_->colors[ui*ANG_SAMPLES_ + ti].b = b;
     }
 
-  setPoint(u*cos(theta-asv_pose_[2]), u*sin(theta-asv_pose_[2]), val);
+  vo_grid_[ui*ANG_SAMPLES_ + ti] = val;
 }
 
-/**
- * Set the value (val) of point (px,py) given relative to the body frame.
- */
-void VelocityObstacle::setPoint(const double &px, const double &py, int val)
-{
-  int PX = (int) (px / GRID_RES_ + 0.5 * VG_XLIM_);
-  int PY = (int) (py / GRID_RES_ + 0.5 * VG_YLIM_);
-
-  if (PX >= VG_XLIM_ || PX < 0 || PY >= VG_YLIM_ || PY < 0 )
-    {
-      ROS_WARN("Attempted to set point outside VO-grid. (%.1f, %.1f), (%d, %d)", px, py, PX, PY);
-      return;
-    }
-  else
-    {
-      if (val > 100)
-        val = 100;
-      else if (val < 0)
-        val = 0;
-
-      /// @TODO Unsure about this shit yo.
-      int i = PY * VG_XLIM_ + PX;
-      vg_.data[i] = val;
-    }
-
-}
-
-void VelocityObstacle::updateAsvState(const nav_msgs::Odometry::ConstPtr &msg)
+void VelocityObstacle::updateAsvState(const nav_msgs::Odometry::ConstPtr &msg, const double &u_d, const double &psi_d)
 {
   double yaw = tf::getYaw(msg->pose.pose.orientation);
   asv_pose_[0] = msg->pose.pose.position.x;
@@ -268,6 +219,9 @@ void VelocityObstacle::updateAsvState(const nav_msgs::Odometry::ConstPtr &msg)
   asv_twist_[0] = msg->twist.twist.linear.x;
   asv_twist_[1] = msg->twist.twist.linear.y;
   asv_twist_[2] = msg->twist.twist.angular.z;
+
+  u_d_ = u_d;
+  psi_d_ = psi_d;
 }
 
 void VelocityObstacle::initializeMarker(visualization_msgs::Marker *marker)
@@ -278,7 +232,7 @@ void VelocityObstacle::initializeMarker(visualization_msgs::Marker *marker)
   double du = MAX_VEL_/VEL_SAMPLES_;
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
 
-  const double MFACTOR = 10.0;
+  const double MFACTOR = 2.0;
 
   for (int ui=0; ui < VEL_SAMPLES_; ++ui) {
     for (int ti=0; ti < ANG_SAMPLES_; ++ti){
@@ -290,6 +244,41 @@ void VelocityObstacle::initializeMarker(visualization_msgs::Marker *marker)
     }
   }
 }
+
+void VelocityObstacle::getBestControlInput(double &u_best, double &psi_best)
+{
+
+  int min = -1;
+  double minval = 9999.9;
+  // Find (position of) minima
+  for (int i=0; i < ANG_SAMPLES_*VEL_SAMPLES_; ++i) {
+    if (vo_grid_[i] < minval) {
+      minval = vo_grid_[i];
+      min = i;
+    }
+  }
+
+  int ui = min / ANG_SAMPLES_;
+  int ti = min % ANG_SAMPLES_;
+
+  double du = MAX_VEL_/VEL_SAMPLES_;
+  double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
+
+
+  u_best = ui*du;
+  psi_best = -MAX_ANG_ + ti*dtheta + asv_pose_[2];
+
+  // ROS_INFO("Best control input: (%.1f, %.1f), (%.1f, %.1f), (%d, %d), %d",
+  //          u_best,
+  //          psi_best,
+  //          u_d_,
+  //          psi_d_,
+  //          ui,
+  //          ti,
+  //          min);
+
+}
+
 /////// UTILS /////////
 void rot2d(const Eigen::Vector2d &v, double yaw, Eigen::Vector2d &result)
 {

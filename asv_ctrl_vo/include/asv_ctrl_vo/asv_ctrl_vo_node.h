@@ -18,10 +18,12 @@ class VelocityObstacleNode
                   ros::Publisher *mk_pub,
                   ros::Subscriber *obstacle_sub,
                   ros::Subscriber *asv_sub,
+                  ros::Subscriber *cmd_sub,
                   VelocityObstacle *vo);
   void start();
   void asvCallback(const nav_msgs::Odometry::ConstPtr &msg);
   void obstacleCallback(const asv_msgs::StateArray::ConstPtr &msg);
+  void cmdCallback(const geometry_msgs::Twist::ConstPtr &msg);
 
  private:
 
@@ -29,6 +31,8 @@ class VelocityObstacleNode
   void initializeMarker();
 
   visualization_msgs::Marker marker_;
+  geometry_msgs::Twist cmd_vel_;
+
 
   VelocityObstacle *vo_;
 
@@ -36,6 +40,8 @@ class VelocityObstacleNode
   Eigen::Vector3d asv_pose_;
   Eigen::Vector3d asv_twist_;
 
+  double u_d_;
+  double psi_d_;
 
   // ROS API
   ros::Publisher *cmd_pub_;
@@ -45,6 +51,7 @@ class VelocityObstacleNode
 
   ros::Subscriber *obstacle_sub_;
   ros::Subscriber *asv_sub_;
+  ros::Subscriber *cmd_sub_; // Subscribe to LOS commands.
 };
 
 
