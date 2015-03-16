@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package>
+  <name>asv_system</name>
+  <version>0.0.0</version>
+  <description>The asv_system package</description>
+
+  <maintainer email="stenersen.thomas@gmail.com">Thomas Stenersen</maintainer>
+  <license>MIT</license>
+
+  <url type="website">http://github.com/thomsten/ros_asv_system</url>
+  <author email="stenersen.thomas@gmail.com">Thomas Stenersen</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <run_depend>asv_ctrl_vo</run_depend>
+  <run_depend>asv_msgs</run_depend>
+  <run_depend>asv_obstacle_tracker</run_depend>
+  <run_depend>asv_simulator</run_depend>
+
+  <export>
+    <metapackage/>
+  </export>
+</package>

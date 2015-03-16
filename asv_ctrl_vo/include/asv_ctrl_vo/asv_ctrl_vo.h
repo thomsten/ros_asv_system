@@ -40,7 +40,7 @@ class VelocityObstacle
   /**
    * Initializes the visualization markers used to display the velocity field.
    *
-   * @param A pointer to a marker message (provided by the ROS wrapper).
+   * @param marker A pointer to a marker message (provided by the ROS wrapper).
    */
   void initializeMarker(visualization_msgs::Marker *marker);
 
