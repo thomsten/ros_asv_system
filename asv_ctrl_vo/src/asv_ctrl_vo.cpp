@@ -25,7 +25,6 @@ VelocityObstacle::VelocityObstacle() : EDGE_SAMPLES_(10),
 {
   asv_pose_ = Eigen::Vector3d(0.0, 0.0, 0.0);
   asv_twist_ = Eigen::Vector3d(0.0, 0.0, 0.0);
-
 }
 
 VelocityObstacle::~VelocityObstacle()
@@ -237,6 +236,11 @@ void VelocityObstacle::initializeMarker(visualization_msgs::Marker *marker)
   double du = MAX_VEL_/VEL_SAMPLES_;
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
 
+  marker_->points.resize(VEL_SAMPLES_*ANG_SAMPLES_);
+  marker_->colors.resize(VEL_SAMPLES_*ANG_SAMPLES_);
+
+  /// The multiplication factor (spreading of points / size of visual VO-field)
+  /// Or, the magic factor if you like...
   const double MFACTOR = 2.0;
 
   for (int ui=0; ui < VEL_SAMPLES_; ++ui) {
