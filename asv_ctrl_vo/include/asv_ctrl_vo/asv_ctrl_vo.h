@@ -11,15 +11,46 @@
 class VelocityObstacle
 {
  public:
+  /// Constructor
   VelocityObstacle();
+  /// Destructor
   ~VelocityObstacle();
 
+  /**
+   * Initializes the controller.
+   *
+   * @param obstacles A pointer to a vector of obstacles provided by the ROS 
+   * wrapper (by subscribing to an obstacle tracker node).
+   */
   void initialize(std::vector<asv_msgs::State> *obstacles);
+  /**
+   * Updates the Velocity Obstacle.
+   */
   void update();
-  void updateAsvState(const nav_msgs::Odometry::ConstPtr &msg, const double &u_d, const double &psi_d);
+  /**
+   * Callback for updating the internal ASV state (data provided by ROS wrapper).
+   *
+   * @param msg The Odometry message which contains the state data.
+   * @param u_d The desired surge speed set point provided by, e.g., a LOS algorithm.
+   * @param psi_d The desired heading set point provided by, e.g., a LOS algorithm.
+   */
+  void updateAsvState(const nav_msgs::Odometry::ConstPtr &msg, 
+                      const double &u_d, 
+                      const double &psi_d);
+  /**
+   * Initializes the visualization markers used to display the velocity field.
+   *
+   * @param A pointer to a marker message (provided by the ROS wrapper).
+   */
   void initializeMarker(visualization_msgs::Marker *marker);
-  int getAngRes() {return ANG_SAMPLES_;};
-  int getVelRes() {return VEL_SAMPLES_;};
+
+  /**
+   * Called after the velocity field has been updated to get the (u, psi) pair
+   * with the lowest cost.
+   *
+   * @param u_best The reference parameter to store the "best" surge speed.
+   * @param psi_best The reference parameter to store the "best" heading.
+   */
   void getBestControlInput(double &u_best, double &psi_best);
 
 
