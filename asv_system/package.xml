@@ -16,7 +16,4 @@
   <run_depend>asv_obstacle_tracker</run_depend>
   <run_depend>asv_simulator</run_depend>
 
-  <export>
-    <metapackage/>
-  </export>
 </package>
