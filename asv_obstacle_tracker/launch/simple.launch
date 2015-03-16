@@ -6,8 +6,8 @@
             type="asv_simulator_node"
             respawn="false"
             output="screen">
-        <rosparam param="initial_state">[250.0, 250.0, -1.57, 2.0, 0.0, 0.0]</rosparam>
-        <!-- <rosparam param="initial_state">[200.0, 250.0, 3.1415, 2.0, 0.0, 0.0]</rosparam> -->
+        <!-- <rosparam param="initial_state">[250.0, 250.0, -1.57, 2.0, 0.0, 0.0]</rosparam> -->
+        <rosparam param="initial_state">[200.0, 250.0, 3.1415, 2.0, 0.0, 0.0]</rosparam>
       </node>
       <node pkg="asv_simulator"
             name="LOSNode"

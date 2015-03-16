@@ -20,7 +20,8 @@ VelocityObstacle::VelocityObstacle() : EDGE_SAMPLES_(10),
                                        GRID_RES_(0.1),
                                        RADIUS_(5.0),
                                        MAX_VEL_(4.0),
-                                       MAX_ANG_(2.0944)
+                                       MAX_ANG_(2.0944),
+                                       MIN_DIST_(100.0)
 {
   asv_pose_ = Eigen::Vector3d(0.0, 0.0, 0.0);
   asv_twist_ = Eigen::Vector3d(0.0, 0.0, 0.0);
@@ -63,13 +64,17 @@ void VelocityObstacle::updateVelocityGrid()
   Eigen::Vector2d v_new_ref = Eigen::Vector2d(0.0,0.0);
 
   std::vector<asv_msgs::State>::iterator it;
-  for (it = obstacles_->begin(); it != obstacles_->end(); ++it) {
 
+  for (it = obstacles_->begin(); it != obstacles_->end(); ++it) {
     Eigen::Vector3d obstacle_pose = Eigen::Vector3d(it->x, it->y, it->psi);
     Eigen::Vector3d obstacle_twist = Eigen::Vector3d(it->u, it->v, it->r);
 
     // Vector from obstacle position to asv position
     Eigen::Vector2d pab = -asv_pose_.head(2) + obstacle_pose.head(2);
+
+    if (pab.norm() < MIN_DIST)
+      continue;
+
     double alpha = asin(2*RADIUS_ / pab.norm());
 
     // Left and right bounds pointing inwards to the VO. (Guy et. al. 2009)
