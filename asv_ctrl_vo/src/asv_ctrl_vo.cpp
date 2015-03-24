@@ -117,8 +117,8 @@ void VelocityObstacle::updateVelocityGrid()
     double objval = 0.0;
 
 
-    for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it){
-      for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it){
+    for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
+      for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
         /// @todo
         u = u0 + u_it*du;
         t = theta0 + t_it*dtheta;
@@ -148,6 +148,36 @@ void VelocityObstacle::updateVelocityGrid()
     }
   }
 }
+
+void VelocityObstacle::checkStaticObstacles()
+{
+  const double RAD2DEG = 180.0/M_PI;
+
+  double u = MAX_VEL_, u_min = 0.0;
+  double theta = -MAX_ANG_ + asv_pose_[2], theta_max = MAX_ANG_ + asv_pose_[2];
+
+  double du = -MAX_VEL_/VEL_SAMPLES_;
+  double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
+
+  // The time limit for static obstacles.
+  // Assuming u_d = 3.0 m/s, tlim = 10.0 s => safety_region 30 m
+  double t_max = 10.0;
+  double t=0;
+
+  /// Note that we loop through the velocity in decreasing order because if the
+  /// largest velocity (-path) is collision free, so will the smaller ones be as
+  /// well.
+  while (theta <= theta_max) {
+    while (u >= u_min) {
+
+      u += du;
+    }
+
+    theta += dtheta;
+  }
+
+}
+
 
 bool VelocityObstacle::inVelocityObstacle(const double &u,
                                           const double &theta,
