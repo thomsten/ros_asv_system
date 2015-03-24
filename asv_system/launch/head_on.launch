@@ -19,4 +19,10 @@
         type="rviz"
         name="rviz"
         args="-d $(find asv_simulator)/config/rviz/two_vessels.rviz" />
+
+  <node pkg="rosbag"
+        type="record"
+        name="rosbag_record"
+        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/head_on.bag /asv/state /obstacles/ship1/state"
+        />
 </launch>
