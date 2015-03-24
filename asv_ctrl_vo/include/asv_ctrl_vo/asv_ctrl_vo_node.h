@@ -10,9 +10,22 @@
 class VelocityObstacleNode
 {
  public:
+  /// Constructor
   VelocityObstacleNode();
+  /// Destructor
   ~VelocityObstacleNode();
 
+  /**
+   * Initializes the Velocity Obstacle node
+   *
+   * @param og_pub
+   * @param cmd_pub
+   * @param mk_pub
+   * @param obstacle_sub
+   * @param asv_sub
+   * @param cmd_sub
+   * @param vo
+   */
   void initialize(ros::Publisher *og_pub,
                   ros::Publisher *cmd_pub,
                   ros::Publisher *mk_pub,
@@ -20,7 +33,12 @@ class VelocityObstacleNode
                   ros::Subscriber *asv_sub,
                   ros::Subscriber *cmd_sub,
                   VelocityObstacle *vo);
+  /**
+   * Start the node. Enters a "never ending" while loop.
+   */
   void start();
+
+
   void asvCallback(const nav_msgs::Odometry::ConstPtr &msg);
   void obstacleCallback(const asv_msgs::StateArray::ConstPtr &msg);
   void cmdCallback(const geometry_msgs::Twist::ConstPtr &msg);

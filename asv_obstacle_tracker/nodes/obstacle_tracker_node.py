@@ -9,30 +9,37 @@ import numpy as np
 
 
 
-def obstacleCallback(data):
+def obstacleCallback(data, num):
     q = (data.pose.pose.orientation.x,
          data.pose.pose.orientation.y,
          data.pose.pose.orientation.z,
          data.pose.pose.orientation.w)
     r,p,y = tf.transformations.euler_from_quaternion(q)
 
-    statearray.states[0].x = data.pose.pose.position.x
-    statearray.states[0].y = data.pose.pose.position.y
-    statearray.states[0].psi = y
-    statearray.states[0].u = data.twist.twist.linear.x
-    statearray.states[0].v = data.twist.twist.linear.y
-    statearray.states[0].r = data.twist.twist.angular.z
+    statearray.states[num].x = data.pose.pose.position.x
+    statearray.states[num].y = data.pose.pose.position.y
+    statearray.states[num].psi = y
+    statearray.states[num].u = data.twist.twist.linear.x
+    statearray.states[num].v = data.twist.twist.linear.y
+    statearray.states[num].r = data.twist.twist.angular.z
 
     pub.publish(statearray)
 
 if __name__ == "__main__":
     rospy.init_node("obstacle_tracker_node")
 
+    ships = rospy.get_param("~obstacles")
+
+
     statearray = StateArray()
-    statearray.states.append(State())
 
-    pub = rospy.Publisher("/obstacle_states", StateArray, queue_size=10)
-    sub = rospy.Subscriber("/obstacles/ship1/state", Odometry, obstacleCallback)
+    sublst = []
+    num = 0
+    for ship in ships:
+        statearray.states.append(State())
+        sublst.append(rospy.Subscriber("/obstacles/" + ship + "/state", Odometry, obstacleCallback, num))
+        num += 1
 
+    pub = rospy.Publisher("/obstacle_states", StateArray, queue_size=1)
 
     rospy.spin()

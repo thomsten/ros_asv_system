@@ -18,13 +18,13 @@ VelocityObstacle::VelocityObstacle() : EDGE_SAMPLES_(10),
                                        VEL_SAMPLES_(41),
                                        ANG_SAMPLES_(101),
                                        GRID_RES_(0.1),
-                                       RADIUS_(5.0),
+                                       RADIUS_(10.0),
                                        MAX_VEL_(4.0),
-                                       MAX_ANG_(2.0944)
+                                       MAX_ANG_(2.0944),
+                                       MIN_DIST_(100.0)
 {
   asv_pose_ = Eigen::Vector3d(0.0, 0.0, 0.0);
   asv_twist_ = Eigen::Vector3d(0.0, 0.0, 0.0);
-
 }
 
 VelocityObstacle::~VelocityObstacle()
@@ -63,13 +63,47 @@ void VelocityObstacle::updateVelocityGrid()
   Eigen::Vector2d v_new_ref = Eigen::Vector2d(0.0,0.0);
 
   std::vector<asv_msgs::State>::iterator it;
-  for (it = obstacles_->begin(); it != obstacles_->end(); ++it) {
 
+  double T_CPA_MAX = 100.0, D_CPA_MIN = 100.0;
+
+  for (it = obstacles_->begin(); it != obstacles_->end(); ++it) {
     Eigen::Vector3d obstacle_pose = Eigen::Vector3d(it->x, it->y, it->psi);
     Eigen::Vector3d obstacle_twist = Eigen::Vector3d(it->u, it->v, it->r);
 
     // Vector from obstacle position to asv position
     Eigen::Vector2d pab = -asv_pose_.head(2) + obstacle_pose.head(2);
+
+    Eigen::Vector2d va, vb;
+    rot2d(asv_twist_.head(2), asv_pose_[2], va);
+    rot2d(obstacle_twist.head(2), obstacle_pose[2], vb);
+
+
+    // Check if we are in a possible COLREGs situation
+    // if (pab.norm() > MIN_DIST_)
+    //   continue;
+
+    double vab_norm = (vb-va).norm();
+    double t_cpa = 0.0;
+    if (vab_norm > 0.1)
+      {
+        t_cpa = -pab.dot(vb-va)/(vab_norm*vab_norm);
+      }
+
+    double d_cpa = ((asv_pose_.head(2) + va*t_cpa) -
+                    (obstacle_pose.head(2) + vb*t_cpa)).norm();
+
+
+    bool collision_situation = false;
+
+    if ((d_cpa < D_CPA_MIN) &&
+        (t_cpa >= 0.0 && t_cpa < T_CPA_MAX))
+      {
+        collision_situation = true;
+      }
+
+
+    // COLREGs situation detected!
+    // Find velocity obstacle region
     double alpha = asin(2*RADIUS_ / pab.norm());
 
     // Left and right bounds pointing inwards to the VO. (Guy et. al. 2009)
@@ -78,8 +112,6 @@ void VelocityObstacle::updateVelocityGrid()
     rot2d(pab,  alpha - 0.5*M_PI, lb);
     rot2d(pab, -alpha + 0.5*M_PI, rb);
 
-    Eigen::Vector2d vb;
-    rot2d(obstacle_twist.head(2), obstacle_pose[2], vb);
 
     // Objective function value. By minimizing this, an "optimal" velocity may be selected.
     double objval = 0.0;
@@ -94,19 +126,22 @@ void VelocityObstacle::updateVelocityGrid()
         v_new_ref[0] = u;
         v_new_ref[1] = t;
 
-        objval = (v_new_ref - va_ref).norm() / 16.0;
+        objval = (v_new_ref - va_ref).norm() / 9.0;
 
-        if (inVelocityObstacle(u, t, lb, rb, vb))
+        if (collision_situation && inVelocityObstacle(u, t, lb, rb, vb))
           {
             setVelocity(u_it, t_it, 1.0);
           }
-        else if (violatesColregs(u, t, obstacle_pose, vb))
+        else if (collision_situation && violatesColregs(u, t, obstacle_pose, vb))
           {
             setVelocity(u_it, t_it, 0.75);
           }
         else
           {
-            // @todo This line will cause a bug if multiple obstacles are present.
+            /// @todo This line will cause a bug if multiple obstacles are present.
+            /// EDIT: Solved in setVelocity by checking if value already present in
+            /// the VO-grid is larger than the value to be added. Should this be
+            /// Tested here instead?
             setVelocity(u_it, t_it, objval);
           }
       }
@@ -140,26 +175,22 @@ bool VelocityObstacle::violatesColregs(const double &u,
   if (0.0 <= alpha or alpha < 15*DEG2RAD)
     {
       // Head-on: COLREGs applicaple if the following relation holds (Kuwata et. al., 2014)
-      ROS_INFO_ONCE("Violates Head-On.");
       return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0);
     }
   else if (15.0*DEG2RAD <= alpha or alpha < 112.5*DEG2RAD)
     {
       // Crossing from right
-      ROS_INFO_ONCE("Violates Crossing from Right.");
       return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0);
     }
   else if (247.5*DEG2RAD <= alpha or alpha < 345.0*DEG2RAD)
     {
       // Crossing from left: No COLREGs
-      ROS_INFO("Crossing from Left.");
       return false;
     }
   else
     {
       // The remaining: Overtaking
       // 112.5*DEG2RAD <= alpha or alpha < 247.5*DEG2RAD
-      ROS_INFO_ONCE("Violates Overtaking.");
       return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0);
     }
 }
@@ -172,6 +203,10 @@ void VelocityObstacle::clearVelocityGrid()
 
 void VelocityObstacle::setVelocity(const int &ui, const int &ti, const double &val)
 {
+  // Already sampled with higher priority (e.g. for another obstacle)
+  if (vo_grid_[ui*ANG_SAMPLES_ + ti] >= val)
+    return;
+
   if (marker_ != NULL)
     {
       // Convert from scalar value to RGB heatmap: https://www.particleincell.com/2014/colormap/
@@ -203,8 +238,8 @@ void VelocityObstacle::setVelocity(const int &ui, const int &ti, const double &v
         }
 
       marker_->colors[ui*ANG_SAMPLES_ + ti].r = r;
-      marker_->colors[ui*ANG_SAMPLES_ + ti].g = g;
-      marker_->colors[ui*ANG_SAMPLES_ + ti].b = b;
+      marker_->colors[ui*ANG_SAMPLES_ + ti].g = b;
+      marker_->colors[ui*ANG_SAMPLES_ + ti].b = g;
     }
 
   vo_grid_[ui*ANG_SAMPLES_ + ti] = val;
@@ -232,6 +267,11 @@ void VelocityObstacle::initializeMarker(visualization_msgs::Marker *marker)
   double du = MAX_VEL_/VEL_SAMPLES_;
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
 
+  marker_->points.resize(VEL_SAMPLES_*ANG_SAMPLES_);
+  marker_->colors.resize(VEL_SAMPLES_*ANG_SAMPLES_);
+
+  /// The multiplication factor (spreading of points / size of visual VO-field)
+  /// Or, the magic factor if you like...
   const double MFACTOR = 2.0;
 
   for (int ui=0; ui < VEL_SAMPLES_; ++ui) {

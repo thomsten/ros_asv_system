@@ -132,11 +132,5 @@ void VelocityObstacleNode::initializeMarker()
   marker_.scale.y = 0.5;
 
 
-  const int VEL_RES = vo_->getVelRes();
-  const int ANG_RES = vo_->getAngRes();
-
-  marker_.points.resize(vo_->getVelRes()*vo_->getAngRes());
-  marker_.colors.resize(vo_->getVelRes()*vo_->getAngRes());
-
   vo_->initializeMarker(&marker_);
 }
