@@ -1,0 +1,11 @@
+<launch>
+  <arg name="mapfile" default="$(find asv_system)/config/maps/map1.yaml"/>
+
+  <node pkg="map_server"
+        type="map_server"
+        name="map_server"
+        args="$(arg mapfile)">
+    <param name="frame_id" type="str" value="map" />
+  </node>
+
+</launch>
