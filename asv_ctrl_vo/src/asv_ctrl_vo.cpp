@@ -162,13 +162,54 @@ void VelocityObstacle::checkStaticObstacles()
   // The time limit for static obstacles.
   // Assuming u_d = 3.0 m/s, tlim = 10.0 s => safety_region 30 m
   double t_max = 10.0;
+  double dt = 1.0; /// @todo This size is proportional to the grid size and
+                   /// velocity and more
   double t=0;
+
+  double px, py;
+
+  bool largest_velocity_collision_free = false;
 
   /// Note that we loop through the velocity in decreasing order because if the
   /// largest velocity (-path) is collision free, so will the smaller ones be as
   /// well.
   while (theta <= theta_max) {
+
+    largest_velocity_collision_free = false;
+    // Reset u
+    u = MAX_VEL_;
+    first_u_run = true;
     while (u >= u_min) {
+      // Reset t
+      t = 0;
+      velocity_ok = true;
+
+      while (t <= t_max) {
+        px = px0 + u*cos(theta)*t;
+        py = py0 + u*sin(theta)*t;
+
+        if (isInObstalce(px,py))
+          {
+            velocity_ok = false;
+            break;
+          }
+
+        t += dt;
+      }
+
+      if (first_run && velocity_ok)
+        {
+          // This direction is ok
+          /// @todo set something here?
+          break;
+        }
+      if (velocity_ok)
+        {
+          setVelocity(ui,thetai, 0);
+        }
+
+      if (first_u_run)
+        first_u_run = false;
 
       u += du;
     }
