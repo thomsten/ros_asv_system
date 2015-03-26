@@ -8,6 +8,11 @@
 #include "nav_msgs/Odometry.h"
 #include "visualization_msgs/Marker.h"
 
+static const double VELOCITY_OK = 0.0;
+static const double VELOCITY_VIOLATES_COLREGS = 0.75;
+static const double VELOCITY_NOT_OK = 1.0;
+static const int OCCUPIED_TRESH = 50;
+
 class VelocityObstacle
 {
  public:
@@ -53,18 +58,13 @@ class VelocityObstacle
    * @param psi_best The reference parameter to store the "best" heading.
    */
   void getBestControlInput(double &u_best, double &psi_best);
-
-  
-  static const double VELOCITY_OK = 0.0;
-  static const double VELOCITY_VIOLATES_COLREGS = 0.75;
-  static const double VELOCITY_IN_VO = 1.0;
-  static const int OCCUPIED_TRESH = 50;
   
  private:
   void setVelocity(const int &ui, const int &ti, const double &val);
   void updateVelocityGrid();
   void clearVelocityGrid();
-
+  void checkStaticObstacles();
+  
   bool inVelocityObstacle(const double &u,
                           const double &theta,
                           const Eigen::Vector2d &lb,

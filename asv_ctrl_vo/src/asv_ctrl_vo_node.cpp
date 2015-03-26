@@ -29,10 +29,10 @@ int main(int argc, char *argv[])
                                              1,
                                              &VelocityObstacleNode::obstacleCallback,
                                              &vo_node);
-  ros::Publisher og_sub = n.subscribe("/map",
-                                      1,
-                                      &VelocityObstacleNode::mapCallback
-                                      &vo_node);
+  ros::Subscriber og_sub = n.subscribe("/map",
+                                       1,
+                                       &VelocityObstacleNode::mapCallback,
+                                       &vo_node);
 
   ros::Subscriber asv_sub = n.subscribe("asv/state",
                                         1,
@@ -121,7 +121,7 @@ void VelocityObstacleNode::cmdCallback(const geometry_msgs::Twist::ConstPtr &msg
 }
 
 
-void VelocityObstacle::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg)
+void VelocityObstacleNode::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg)
 {
   // Copy what we need
   map_.info.resolution = msg->info.resolution;
@@ -130,7 +130,8 @@ void VelocityObstacle::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg)
   map_.info.origin.position.x = msg->info.origin.position.x;
   map_.info.origin.position.y = msg->info.origin.position.y;
 
-  map.data = msg->data;
+  ROS_INFO("YOLO: %f", msg->info.resolution);
+  map_.data = msg->data;
 }
 
 

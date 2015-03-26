@@ -47,6 +47,7 @@ void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles, nav_m
 void VelocityObstacle::update()
 {
   clearVelocityGrid();
+  checkStaticObstacles();
   updateVelocityGrid();
 }
 
@@ -66,6 +67,27 @@ void VelocityObstacle::updateVelocityGrid()
   std::vector<asv_msgs::State>::iterator it;
 
   double T_CPA_MAX = 100.0, D_CPA_MIN = 100.0;
+
+  if (obstacles_->empty())
+    {
+      double objval = 0.0;
+      for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
+        for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
+          /// @todo
+          u = u0 + u_it*du;
+          t = theta0 + t_it*dtheta;
+
+          v_new_ref[0] = u;
+          v_new_ref[1] = t;
+
+          objval = (v_new_ref - va_ref).norm() / 9.0;
+
+          setVelocity(u_it, t_it, objval);
+        }
+      }
+
+      return;
+    }
 
   for (it = obstacles_->begin(); it != obstacles_->end(); ++it) {
     Eigen::Vector3d obstacle_pose = Eigen::Vector3d(it->x, it->y, it->psi);
@@ -131,15 +153,15 @@ void VelocityObstacle::updateVelocityGrid()
 
         if (collision_situation && inVelocityObstacle(u, t, lb, rb, vb))
           {
-            setVelocity(u_it, t_it, VELOCITY_IN_VO);
+            setVelocity(u_it, t_it, VELOCITY_NOT_OK);
           }
         else if (collision_situation && violatesColregs(u, t, obstacle_pose, vb))
           {
-            setVelocity(u_it, t_it, VELOCITY_VIOLATES_COLGRES);
+            setVelocity(u_it, t_it, VELOCITY_VIOLATES_COLREGS);
           }
         else
           {
-v            /// @todo This line will cause a bug if multiple obstacles are present.
+            /// @todo This line will cause a bug if multiple obstacles are present.
             /// EDIT: Solved in setVelocity by checking if value already present in
             /// the VO-grid is larger than the value to be added. Should this be
             /// Tested here instead?
@@ -152,6 +174,8 @@ v            /// @todo This line will cause a bug if multiple obstacles are pres
 
 void VelocityObstacle::checkStaticObstacles()
 {
+  if (map_ == NULL || map_->info.resolution <= 0.0)
+    return;
   const double RAD2DEG = 180.0/M_PI;
 
   double u = MAX_VEL_, u_min = 0.0;
@@ -161,10 +185,11 @@ void VelocityObstacle::checkStaticObstacles()
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
 
   // The time limit for static obstacles.
-  // Assuming u_d = 3.0 m/s, tlim = 10.0 s => safety_region 30 m
-  double t_max = 10.0;
-  double dt = 1.0; /// @todo This size is proportional to the grid size and
-                   /// velocity and more
+  // Assuming u_d = 3.0 m/s, tlim = 40.0 s => safety_region 120 m
+  double t_max = 40.0;
+
+  double dt = map_->info.resolution / MAX_VEL_; /// @todo This size is proportional to the grid size and velocity
+
   double t = 0;
 
   double px, py, dx, dy;
@@ -174,22 +199,21 @@ void VelocityObstacle::checkStaticObstacles()
   /// Note that we loop through the velocity in decreasing order because if the
   /// largest velocity (-path) is collision free, so will the smaller ones be as
   /// well.
-  for (int theta_it = 0; theta_i < ANG_SAMPLES_; ++theta_i) {
-    largest_velocity_collision_free = false;
+  for (int theta_it = 0; theta_it < ANG_SAMPLES_; ++theta_it) {
+
     // Reset u
     u = MAX_VEL_;
     dx = cos(theta);
     dy = sin(theta);
-    for (int u_it = VEL_SAMPLES_; u_it >= 0; --u_it) {
+    for (int u_it = VEL_SAMPLES_-1; u_it >= 0; --u_it) {
       // Reset t
       t = 0;
       velocity_ok = true;
-
       while (t <= t_max) {
         px = px0 + u*dx*t;
         py = py0 + u*dy*t;
 
-        if (isInObstacle(px,py))
+        if (inObstacle(px, py))
           {
             velocity_ok = false;
             break;
@@ -202,8 +226,12 @@ void VelocityObstacle::checkStaticObstacles()
           // This direction is ok
           // Mark all velocities from here as ok!
           for (int i=u_it; i >= 0; --i)
-            setVelocity(theta_it, i, VELOCITY_OK);
+            setVelocity(i, theta_it, VELOCITY_OK);
           break;
+        }
+      else
+        {
+          setVelocity(u_it, theta_it, VELOCITY_NOT_OK);
         }
 
       u += du;
@@ -384,10 +412,10 @@ bool VelocityObstacle::inObstacle(double px, double py)
   int px_i = (int) round(px / map_->info.resolution);
   int py_i = (int) round(py / map_->info.resolution);
 
-  if ((px_i < 0 || px_i >= map_->info.width
-       py_i < 0 || py_i >= map_->info.heigh))
+
+  if ((px_i < 0 || px_i >= map_->info.width ||
+       py_i < 0 || py_i >= map_->info.height))
     {
-      ROS_ERROR("Requested point outside of map. Assuming it is clear!");
       return false;
     }
 
@@ -402,4 +430,3 @@ void rot2d(const Eigen::Vector2d &v, double yaw, Eigen::Vector2d &result)
     sin(yaw), cos(yaw);
   result = R*v;
 }
-
