@@ -31,7 +31,7 @@ VelocityObstacle::~VelocityObstacle()
 {
 }
 
-void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles)
+void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles, nav_msgs::OccupancyGrid *map)
 {
 
   ROS_INFO("Initializing VO-node...");
@@ -39,6 +39,7 @@ void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles)
   vo_grid_.resize(ANG_SAMPLES_*VEL_SAMPLES_);
 
   obstacles_ = obstacles;
+  map_ = map;
 
   ROS_INFO("Initialization complete!");
 }
@@ -130,15 +131,15 @@ void VelocityObstacle::updateVelocityGrid()
 
         if (collision_situation && inVelocityObstacle(u, t, lb, rb, vb))
           {
-            setVelocity(u_it, t_it, 1.0);
+            setVelocity(u_it, t_it, VELOCITY_IN_VO);
           }
         else if (collision_situation && violatesColregs(u, t, obstacle_pose, vb))
           {
-            setVelocity(u_it, t_it, 0.75);
+            setVelocity(u_it, t_it, VELOCITY_VIOLATES_COLGRES);
           }
         else
           {
-            /// @todo This line will cause a bug if multiple obstacles are present.
+v            /// @todo This line will cause a bug if multiple obstacles are present.
             /// EDIT: Solved in setVelocity by checking if value already present in
             /// the VO-grid is larger than the value to be added. Should this be
             /// Tested here instead?
@@ -164,52 +165,46 @@ void VelocityObstacle::checkStaticObstacles()
   double t_max = 10.0;
   double dt = 1.0; /// @todo This size is proportional to the grid size and
                    /// velocity and more
-  double t=0;
+  double t = 0;
 
-  double px, py;
+  double px, py, dx, dy;
+  double px0 = asv_pose_[0], py0 = asv_pose_[1];
 
-  bool largest_velocity_collision_free = false;
-
+  bool velocity_ok;
   /// Note that we loop through the velocity in decreasing order because if the
   /// largest velocity (-path) is collision free, so will the smaller ones be as
   /// well.
-  while (theta <= theta_max) {
-
+  for (int theta_it = 0; theta_i < ANG_SAMPLES_; ++theta_i) {
     largest_velocity_collision_free = false;
     // Reset u
     u = MAX_VEL_;
-    first_u_run = true;
-    while (u >= u_min) {
+    dx = cos(theta);
+    dy = sin(theta);
+    for (int u_it = VEL_SAMPLES_; u_it >= 0; --u_it) {
       // Reset t
       t = 0;
       velocity_ok = true;
 
       while (t <= t_max) {
-        px = px0 + u*cos(theta)*t;
-        py = py0 + u*sin(theta)*t;
+        px = px0 + u*dx*t;
+        py = py0 + u*dy*t;
 
-        if (isInObstalce(px,py))
+        if (isInObstacle(px,py))
           {
             velocity_ok = false;
             break;
           }
-
         t += dt;
       }
 
-      if (first_run && velocity_ok)
-        {
-          // This direction is ok
-          /// @todo set something here?
-          break;
-        }
       if (velocity_ok)
         {
-          setVelocity(ui,thetai, 0);
+          // This direction is ok
+          // Mark all velocities from here as ok!
+          for (int i=u_it; i >= 0; --i)
+            setVelocity(theta_it, i, VELOCITY_OK);
+          break;
         }
-
-      if (first_u_run)
-        first_u_run = false;
 
       u += du;
     }
@@ -378,16 +373,25 @@ void VelocityObstacle::getBestControlInput(double &u_best, double &psi_best)
 
   u_best = ui*du;
   psi_best = -MAX_ANG_ + ti*dtheta + asv_pose_[2];
+}
 
-  // ROS_INFO("Best control input: (%.1f, %.1f), (%.1f, %.1f), (%d, %d), %d",
-  //          u_best,
-  //          psi_best,
-  //          u_d_,
-  //          psi_d_,
-  //          ui,
-  //          ti,
-  //          min);
+bool VelocityObstacle::inObstacle(double px, double py)
+{
+  // Assume the map isn't rotated.
+  px -= map_->info.origin.position.x;
+  py -= map_->info.origin.position.y;
 
+  int px_i = (int) round(px / map_->info.resolution);
+  int py_i = (int) round(py / map_->info.resolution);
+
+  if ((px_i < 0 || px_i >= map_->info.width
+       py_i < 0 || py_i >= map_->info.heigh))
+    {
+      ROS_ERROR("Requested point outside of map. Assuming it is clear!");
+      return false;
+    }
+
+  return map_->data[px_i + py_i*map_->info.height] > OCCUPIED_TRESH;
 }
 
 /////// UTILS /////////
