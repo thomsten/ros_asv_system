@@ -172,6 +172,7 @@ bool VelocityObstacle::violatesColregs(const double &u,
   double alpha = atan2(pdiff[1], pdiff[0]) - obstacle_pose[2];
   const double DEG2RAD = M_PI/180.0f;
 
+  // The limits are found in Loe, 2008.
   if (0.0 <= alpha or alpha < 15*DEG2RAD)
     {
       // Head-on: COLREGs applicaple if the following relation holds (Kuwata et. al., 2014)
@@ -307,15 +308,6 @@ void VelocityObstacle::getBestControlInput(double &u_best, double &psi_best)
 
   u_best = ui*du;
   psi_best = -MAX_ANG_ + ti*dtheta + asv_pose_[2];
-
-  // ROS_INFO("Best control input: (%.1f, %.1f), (%.1f, %.1f), (%d, %d), %d",
-  //          u_best,
-  //          psi_best,
-  //          u_d_,
-  //          psi_d_,
-  //          ui,
-  //          ti,
-  //          min);
 
 }
 
