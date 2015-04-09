@@ -60,6 +60,8 @@ void VelocityObstacle::updateVelocityGrid()
   double du = MAX_VEL_/VEL_SAMPLES_;
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
 
+  Eigen::Vector2d va;
+  rot2d(asv_twist_.head(2), asv_pose_[2], va);
   Eigen::Vector2d va_ref = Eigen::Vector2d(u_d_,
                                            psi_d_);
   Eigen::Vector2d v_new_ref = Eigen::Vector2d(0.0,0.0);
@@ -80,7 +82,7 @@ void VelocityObstacle::updateVelocityGrid()
           v_new_ref[0] = u;
           v_new_ref[1] = t;
 
-          objval = (v_new_ref - va_ref).norm() / 9.0;
+          objval = (0.8*(v_new_ref - va_ref).norm() + 0.2*(v_new_ref - va).norm()) / 9.0;
 
           setVelocity(u_it, t_it, objval);
         }
@@ -96,8 +98,7 @@ void VelocityObstacle::updateVelocityGrid()
     // Vector from obstacle position to asv position
     Eigen::Vector2d pab = -asv_pose_.head(2) + obstacle_pose.head(2);
 
-    Eigen::Vector2d va, vb;
-    rot2d(asv_twist_.head(2), asv_pose_[2], va);
+    Eigen::Vector2d vb;
     rot2d(obstacle_twist.head(2), obstacle_pose[2], vb);
 
 
@@ -149,7 +150,7 @@ void VelocityObstacle::updateVelocityGrid()
         v_new_ref[0] = u;
         v_new_ref[1] = t;
 
-        objval = (v_new_ref - va_ref).norm() / 9.0;
+        objval = (0.8*(v_new_ref - va_ref).norm() + 0.2*(v_new_ref - va).norm()) / 9.0;
 
         if (collision_situation && inVelocityObstacle(u, t, lb, rb, vb))
           {
@@ -231,7 +232,10 @@ void VelocityObstacle::checkStaticObstacles()
         }
       else
         {
-          setVelocity(u_it, theta_it, VELOCITY_NOT_OK);
+          for (int i=u_it; i >= 0; --i)
+            setVelocity(i, theta_it, VELOCITY_NOT_OK);
+          break;
+          //setVelocity(u_it, theta_it, VELOCITY_NOT_OK);
         }
 
       u += du;
