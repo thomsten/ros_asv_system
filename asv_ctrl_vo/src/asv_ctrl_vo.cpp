@@ -7,7 +7,7 @@
 #include <tf/transform_datatypes.h>
 
 #include <iostream>
-#include <math.h>
+#include <cmath>
 
 #include "asv_ctrl_vo/asv_ctrl_vo.h"
 
@@ -54,6 +54,7 @@ void VelocityObstacle::update()
 void VelocityObstacle::updateVelocityGrid()
 {
   const double RAD2DEG = 180.0/M_PI;
+  const double OBJVAL_SCALE = 11.0
 
   double u0 = 0, u = 0;
   double theta0 = -MAX_ANG_ + asv_pose_[2], t = 0;
@@ -64,31 +65,32 @@ void VelocityObstacle::updateVelocityGrid()
   rot2d(asv_twist_.head(2), asv_pose_[2], va);
   Eigen::Vector2d va_ref = Eigen::Vector2d(u_d_,
                                            psi_d_);
-  Eigen::Vector2d v_new_ref = Eigen::Vector2d(0.0,0.0);
 
   std::vector<asv_msgs::State>::iterator it;
 
   double T_CPA_MAX = 100.0, D_CPA_MIN = 100.0;
 
+  double uerr, terr;
+
+  // Objective function value. By minimizing this, an "optimal" velocity may be selected.
+  double objval = 0.0;
+
   if (obstacles_->empty())
     {
-      double objval = 0.0;
       for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
         for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
           /// @todo
           u = u0 + u_it*du;
           t = theta0 + t_it*dtheta;
 
-          v_new_ref[0] = u;
-          v_new_ref[1] = t;
+          uerr = fabs(u - va_ref[0]);
+          terr = fabs(t - va_ref[1]);
 
-          objval = (0.8*(v_new_ref - va_ref).norm() + 0.2*(v_new_ref - va).norm()) / 9.0;
+          objval = (0.05*uerr*uerr + 0.95*terr*terr) / OBJVAL_SCALE;
 
           setVelocity(u_it, t_it, objval);
         }
       }
-
-      return;
     }
 
   for (it = obstacles_->begin(); it != obstacles_->end(); ++it) {
@@ -101,7 +103,7 @@ void VelocityObstacle::updateVelocityGrid()
     Eigen::Vector2d vb;
     rot2d(obstacle_twist.head(2), obstacle_pose[2], vb);
 
-
+    /// @todo ???
     // Check if we are in a possible COLREGs situation
     // if (pab.norm() > MIN_DIST_)
     //   continue;
@@ -125,7 +127,6 @@ void VelocityObstacle::updateVelocityGrid()
         collision_situation = true;
       }
 
-
     // COLREGs situation detected!
     // Find velocity obstacle region
     double alpha = asin(2*RADIUS_ / pab.norm());
@@ -136,21 +137,16 @@ void VelocityObstacle::updateVelocityGrid()
     rot2d(pab,  alpha - 0.5*M_PI, lb);
     rot2d(pab, -alpha + 0.5*M_PI, rb);
 
-
-    // Objective function value. By minimizing this, an "optimal" velocity may be selected.
-    double objval = 0.0;
-
-
     for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
       for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
         /// @todo
         u = u0 + u_it*du;
         t = theta0 + t_it*dtheta;
 
-        v_new_ref[0] = u;
-        v_new_ref[1] = t;
+        uerr = fabs(u - va_ref[0]);
+        terr = fabs(t - va_ref[1]);
 
-        objval = (0.8*(v_new_ref - va_ref).norm() + 0.2*(v_new_ref - va).norm()) / 9.0;
+        objval = (0.05*uerr*uerr + 0.95*terr*terr) / OBJVAL_SCALE;
 
         if (collision_situation && inVelocityObstacle(u, t, lb, rb, vb))
           {
@@ -186,7 +182,7 @@ void VelocityObstacle::checkStaticObstacles()
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
 
   // The time limit for static obstacles.
-  // Assuming u_d = 3.0 m/s, tlim = 40.0 s => safety_region 120 m
+  // Assuming u_d = 3.0 m/s, tlim = 40.0 s => safety_region 120 m (head on)
   double t_max = 40.0;
 
   double dt = map_->info.resolution / MAX_VEL_; /// @todo This size is proportional to the grid size and velocity
@@ -232,10 +228,7 @@ void VelocityObstacle::checkStaticObstacles()
         }
       else
         {
-          for (int i=u_it; i >= 0; --i)
-            setVelocity(i, theta_it, VELOCITY_NOT_OK);
-          break;
-          //setVelocity(u_it, theta_it, VELOCITY_NOT_OK);
+          setVelocity(u_it, theta_it, VELOCITY_NOT_OK);
         }
 
       u += du;
@@ -302,42 +295,50 @@ void VelocityObstacle::clearVelocityGrid()
 void VelocityObstacle::setVelocity(const int &ui, const int &ti, const double &val)
 {
   // Already sampled with higher priority (e.g. for another obstacle)
-  if (vo_grid_[ui*ANG_SAMPLES_ + ti] >= val)
+  if (vo_grid_[ui*ANG_SAMPLES_ + ti] >= val && val != 1337.0)
     return;
+
 
   if (marker_ != NULL)
     {
       // Convert from scalar value to RGB heatmap: https://www.particleincell.com/2014/colormap/
       double newval = 4*(1.0 - val);
 
-      // Get integer part
-      double group = floor(newval);
-      double frac = (newval - group);
+      if (val == 1337.0) {
+        marker_->colors[ui*ANG_SAMPLES_ + ti].r = 0;
+        marker_->colors[ui*ANG_SAMPLES_ + ti].g = 0;
+        marker_->colors[ui*ANG_SAMPLES_ + ti].b = 0;
+      } else {
 
-      double r=0.0, g=0.0, b=0.0;
+        // Get integer part
+        double group = floor(newval);
+        double frac = (newval - group);
 
-      switch ((int) group)
-        {
-        case 0:
-          r = 1.0; g = frac; b = 0;
-          break;
-        case 1:
-          r = 1.0-frac; g = 1.0; b = 0;
-          break;
-        case 2:
-          r = 0; g = 1.0; b = frac;
-          break;
-        case 3:
-          r = 0; g = 1.0-frac; b = 1.0;
-          break;
-        case 4:
-          r = 0; g = 0; b = 1.0;
-          break;
-        }
+        double r=0.0, g=0.0, b=0.0;
 
-      marker_->colors[ui*ANG_SAMPLES_ + ti].r = r;
-      marker_->colors[ui*ANG_SAMPLES_ + ti].g = b;
-      marker_->colors[ui*ANG_SAMPLES_ + ti].b = g;
+        switch ((int) group)
+          {
+          case 0:
+            r = 1.0; g = frac; b = 0;
+            break;
+          case 1:
+            r = 1.0-frac; g = 1.0; b = 0;
+            break;
+          case 2:
+            r = 0; g = 1.0; b = frac;
+            break;
+          case 3:
+            r = 0; g = 1.0-frac; b = 1.0;
+            break;
+          case 4:
+            r = 0; g = 0; b = 1.0;
+            break;
+          }
+
+        marker_->colors[ui*ANG_SAMPLES_ + ti].r = r;
+        marker_->colors[ui*ANG_SAMPLES_ + ti].g = b;
+        marker_->colors[ui*ANG_SAMPLES_ + ti].b = g;
+      }
     }
 
   vo_grid_[ui*ANG_SAMPLES_ + ti] = val;
@@ -398,6 +399,8 @@ void VelocityObstacle::getBestControlInput(double &u_best, double &psi_best)
 
   int ui = min / ANG_SAMPLES_;
   int ti = min % ANG_SAMPLES_;
+
+  setVelocity(ui, ti, 1337.0);
 
   double du = MAX_VEL_/VEL_SAMPLES_;
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
