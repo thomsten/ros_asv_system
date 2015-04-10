@@ -9,7 +9,7 @@
 #include <iostream>
 #include <cmath>
 
-#include "asv_ctrl_vo/asv_ctrl_vo.h"
+#include "asv_ctrl_vo_plugin/asv_ctrl_vo_plugin.h"
 
 
 void rot2d(const Eigen::Vector2d &v, double yaw, Eigen::Vector2d &result);
