@@ -8,6 +8,11 @@
 #include "nav_msgs/Odometry.h"
 #include "visualization_msgs/Marker.h"
 
+static const double VELOCITY_OK = 0.0;
+static const double VELOCITY_VIOLATES_COLREGS = 0.75;
+static const double VELOCITY_NOT_OK = 1.0;
+static const int OCCUPIED_TRESH = 50;
+
 class VelocityObstacle
 {
  public:
@@ -17,18 +22,19 @@ class VelocityObstacle
   ~VelocityObstacle();
 
   /**
-   * Initializes the controller.
+   * @brief Initializes the controller.
    *
    * @param obstacles A pointer to a vector of obstacles provided by the ROS 
    * wrapper (by subscribing to an obstacle tracker node).
+   * @param map A pointer to the occupancy grid published by the map_server.
    */
-  void initialize(std::vector<asv_msgs::State> *obstacles);
+  void initialize(std::vector<asv_msgs::State> *obstacles, nav_msgs::OccupancyGrid *map);
   /**
-   * Updates the Velocity Obstacle.
+   * @brief Updates the Velocity Obstacle.
    */
   void update();
   /**
-   * Callback for updating the internal ASV state (data provided by ROS wrapper).
+   * @brief Callback for updating the internal ASV state (data provided by ROS wrapper).
    *
    * @param msg The Odometry message which contains the state data.
    * @param u_d The desired surge speed set point provided by, e.g., a LOS algorithm.
@@ -45,20 +51,20 @@ class VelocityObstacle
   void initializeMarker(visualization_msgs::Marker *marker);
 
   /**
-   * Called after the velocity field has been updated to get the (u, psi) pair
+   * @brief Called after the velocity field has been updated to get the (u, psi) pair
    * with the lowest cost.
    *
    * @param u_best The reference parameter to store the "best" surge speed.
    * @param psi_best The reference parameter to store the "best" heading.
    */
   void getBestControlInput(double &u_best, double &psi_best);
-
-
+  
  private:
   void setVelocity(const int &ui, const int &ti, const double &val);
   void updateVelocityGrid();
   void clearVelocityGrid();
-
+  void checkStaticObstacles();
+  
   bool inVelocityObstacle(const double &u,
                           const double &theta,
                           const Eigen::Vector2d &lb,
@@ -68,7 +74,8 @@ class VelocityObstacle
                        const double &theta,
                        const Eigen::Vector3d &obstacle_pose,
                        const Eigen::Vector2d &vb);
-
+  
+  bool inObstacle(double px, double py);
 
   const double RADIUS_;
   const double MAX_VEL_;
@@ -87,12 +94,12 @@ class VelocityObstacle
   double u_d_;
   double psi_d_;
 
-
-  std::vector<asv_msgs::State> *obstacles_;
+  
 
   // ROS API
   // void obstacleSubCallback(const nav_msgs::Odometry::ConstPtr &msg);
-
+  std::vector<asv_msgs::State> *obstacles_;
+  nav_msgs::OccupancyGrid *map_;
   visualization_msgs::Marker *marker_;
 };
 
