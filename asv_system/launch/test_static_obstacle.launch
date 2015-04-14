@@ -1,0 +1,23 @@
+<launch>
+  <include file="$(find asv_simulator)/launch/default.launch">
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/south_to_north.yaml" />
+    <arg name="u_d" value="5.0" />
+  </include>
+
+  <include file="$(find asv_obstacle_tracker)/launch/default.launch"/>
+  <include file="$(find asv_system)/launch/mapserver.launch">
+    <arg name="mapfile" value="$(find asv_system)/config/maps/map1.yaml" />
+  </include>
+    
+  
+  <node pkg="rviz"
+        type="rviz"
+        name="rviz"
+        args="-d $(find asv_simulator)/config/rviz/two_vessels.rviz" />
+
+  <node pkg="rosbag"
+        type="record"
+        name="rosbag_record"
+        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/test_static_obstacle.bag /asv/state /obstacles/ship1/state"
+        />
+</launch>
