@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>asv_ctrl_los</name>
+  <name>asv_path_trackers</name>
   <version>0.1.0</version>
-  <description>The asc_ctrl_los package</description>
+  <description>The asv_path_trackers package</description>
 
   <maintainer email="stenersen.thomas@gmail.com">Thomas Stenersen</maintainer>
   <license>MIT</license>
