@@ -21,4 +21,3 @@
         args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/test_static_obstacle.bag /asv/state /obstacles/ship1/state"
         />
 </launch>
-

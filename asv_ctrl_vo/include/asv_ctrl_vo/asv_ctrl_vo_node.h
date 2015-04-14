@@ -18,10 +18,10 @@ class VelocityObstacleNode
   /**
    * Initializes the Velocity Obstacle node
    *
-   * @param og_pub
    * @param cmd_pub
    * @param mk_pub
    * @param obstacle_sub
+   * @param og_sub
    * @param asv_sub
    * @param cmd_sub
    * @param vo
@@ -29,7 +29,7 @@ class VelocityObstacleNode
   void initialize(ros::Publisher *cmd_pub,
                   ros::Publisher *mk_pub,
                   ros::Subscriber *obstacle_sub,
-                  ros::Subscriber *og_pub,
+                  ros::Subscriber *og_sub,
                   ros::Subscriber *asv_sub,
                   ros::Subscriber *cmd_sub,
                   VelocityObstacle *vo);
