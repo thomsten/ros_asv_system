@@ -31,7 +31,7 @@ VelocityObstacle::~VelocityObstacle()
 {
 }
 
-void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles, nav_msgs::OccupancyGrid *map)
+void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles, costmap_2d::Costmap2D *costmap_ros)
 {
 
   ROS_INFO("Initializing VO-node...");
@@ -39,7 +39,8 @@ void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles, nav_m
   vo_grid_.resize(ANG_SAMPLES_*VEL_SAMPLES_);
 
   obstacles_ = obstacles;
-  map_ = map;
+  costmap_ = costmap;
+  costmap_resolution_ = costmap_->getResolution();
 
   ROS_INFO("Initialization complete!");
 }
@@ -171,8 +172,9 @@ void VelocityObstacle::updateVelocityGrid()
 
 void VelocityObstacle::checkStaticObstacles()
 {
-  if (map_ == NULL || map_->info.resolution <= 0.0)
+  if (costmap_ == NULL || costmap_resolution_ <= 0.0)
     return;
+
   const double RAD2DEG = 180.0/M_PI;
 
   double u = MAX_VEL_, u_min = 0.0;
@@ -185,7 +187,7 @@ void VelocityObstacle::checkStaticObstacles()
   // Assuming u_d = 3.0 m/s, tlim = 40.0 s => safety_region 120 m (head on)
   double t_max = 40.0;
 
-  double dt = map_->info.resolution / MAX_VEL_; /// @todo This size is proportional to the grid size and velocity
+  double dt = costmap_resolution_ / MAX_VEL_; /// @todo This size is proportional to the grid size and velocity
 
   double t = 0;
 
@@ -345,20 +347,6 @@ void VelocityObstacle::setVelocity(const int &ui, const int &ti, const double &v
   vo_grid_[ui*ANG_SAMPLES_ + ti] = val;
 }
 
-void VelocityObstacle::updateAsvState(const nav_msgs::Odometry::ConstPtr &msg, const double &u_d, const double &psi_d)
-{
-  double yaw = tf::getYaw(msg->pose.pose.orientation);
-  asv_pose_[0] = msg->pose.pose.position.x;
-  asv_pose_[1] = msg->pose.pose.position.y;
-  asv_pose_[2] = yaw;
-  asv_twist_[0] = msg->twist.twist.linear.x;
-  asv_twist_[1] = msg->twist.twist.linear.y;
-  asv_twist_[2] = msg->twist.twist.angular.z;
-
-  u_d_ = u_d;
-  psi_d_ = psi_d;
-}
-
 void VelocityObstacle::initializeMarker(visualization_msgs::Marker *marker)
 {
   marker_ = marker;
@@ -385,7 +373,9 @@ void VelocityObstacle::initializeMarker(visualization_msgs::Marker *marker)
   }
 }
 
-void VelocityObstacle::getBestControlInput(double &u_best, double &psi_best)
+void VelocityObstacle::getBestControlInput(const Eigen::Vector3d &asv_pose,
+                                           const Eigen::Vector2d &asv_twist,
+                                           geometry_msgs::Twist &cmd_vel)
 {
 
   int min = -1;
@@ -407,27 +397,38 @@ void VelocityObstacle::getBestControlInput(double &u_best, double &psi_best)
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
 
 
-  u_best = ui*du;
-  psi_best = -MAX_ANG_ + ti*dtheta + asv_pose_[2];
+  cmd_vel.linear.x = ui*du;
+  cmd_vel.angular.y = -MAX_ANG_ + ti*dtheta + asv_pose_[2];
 }
 
 bool VelocityObstacle::inObstacle(double px, double py)
 {
   // Assume the map isn't rotated.
-  px -= map_->info.origin.position.x;
-  py -= map_->info.origin.position.y;
+  px -= costmap_->getOriginX();
+  py -= costmap_->getOriginY();
 
-  int px_i = (int) round(px / map_->info.resolution);
-  int py_i = (int) round(py / map_->info.resolution);
+  int px_i = (int) round(px / costmap_resolution_);
+  int py_i = (int) round(py / costmap_resolution_);
 
 
-  if ((px_i < 0 || px_i >= map_->info.width ||
-       py_i < 0 || py_i >= map_->info.height))
+  if ((px_i < 0 || px_i >= costmap_->getSizeInCellsX() ||
+       py_i < 0 || py_i >= costmap_->getSizeInCellsY()))
     {
       return false;
     }
 
-  return map_->data[px_i + py_i*map_->info.height] > OCCUPIED_TRESH;
+  return costmap_->getCost((unsigned int) px_i, (unsigned int) py_i) > OCCUPIED_TRESH;
+}
+
+
+bool VelocityObstacle::isGoalReached()
+{
+  return (goal_x*goal_x + goal_y*goal_y < 250.0);
+}
+
+bool VelocityObstacle::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
+{
+
 }
 
 /////// UTILS /////////

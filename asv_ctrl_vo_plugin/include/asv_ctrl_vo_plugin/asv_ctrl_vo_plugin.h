@@ -33,22 +33,13 @@ class VelocityObstacle
    * @brief Updates the Velocity Obstacle.
    */
   void update();
-  /**
-   * @brief Callback for updating the internal ASV state (data provided by ROS wrapper).
-   *
-   * @param msg The Odometry message which contains the state data.
-   * @param u_d The desired surge speed set point provided by, e.g., a LOS algorithm.
-   * @param psi_d The desired heading set point provided by, e.g., a LOS algorithm.
-   */
-  void updateAsvState(const nav_msgs::Odometry::ConstPtr &msg, 
-                      const double &u_d, 
-                      const double &psi_d);
+
   /**
    * Initializes the visualization markers used to display the velocity field.
    *
    * @param marker A pointer to a marker message (provided by the ROS wrapper).
    */
-  void initializeMarker(visualization_msgs::Marker *marker);
+  void initializeMarkers(visualization_msgs::Marker *marker);
 
   /**
    * @brief Called after the velocity field has been updated to get the (u, psi) pair
@@ -89,17 +80,15 @@ class VelocityObstacle
 
   std::vector<double> vo_grid_;
 
-  Eigen::Vector3d asv_pose_;
-  Eigen::Vector3d asv_twist_;
   double u_d_;
   double psi_d_;
 
-  
+  double costmap_resolution_;
 
   // ROS API
   // void obstacleSubCallback(const nav_msgs::Odometry::ConstPtr &msg);
   std::vector<asv_msgs::State> *obstacles_;
-  nav_msgs::OccupancyGrid *map_;
+  costmap_2d::costmap2D *costmap_;
   visualization_msgs::Marker *marker_;
 };
 

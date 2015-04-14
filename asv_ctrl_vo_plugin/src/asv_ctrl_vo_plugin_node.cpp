@@ -32,16 +32,19 @@ namespace asv_ctrl_vo
 
         mk_pub_  = n.advertise<visualization_msgs::Marker>("vo_markers", 1);
 
-        //cmd_pub_ = n.advertise<geometry_msgs::Twist>("asv/cmd_vel", 10);
-
         obstacle_sub_ = nh.subscribe("obstacle_states",
                                      1,
                                      obstacleCallback,
                                      this);
+        asv_sub_ = nh.subscribe("asv/state",
+                                1,
+                                asvCallback,
+                                this);
 
         costmap_ros_ = costmap_ros;
 
         vo_->initialize(&dynamic_obstacles_, costmap_ros);
+        initializeMarkers();
 
         initialized_ = true;
 
@@ -54,10 +57,6 @@ namespace asv_ctrl_vo
 
 
   bool computeVelocityCommands(geometry_msgs::Twist &cmd_vel) {
-
-
-    Eigen::Vector3d asv_pose;
-    Eigen::Vector3d asv_twist;
 
     vo_->update();
     vo_->getBestControlInput(asv_pose_, asv_twist_, cmd_vel);
@@ -78,4 +77,32 @@ namespace asv_ctrl_vo
   bool setPlan(const std::vector<geometry_msgs::PoseStamped> &plan) {
     return vo_->setPlan(plan);
   }
+}
+
+
+
+void VelocityObstacleNode::asvCallback(const nav_msgs::Odometry::ConstPtr &msg)
+{
+  vo_->updateAsvState(msg, u_d_, psi_d_);
+}
+
+void VelocityObstacleNode::obstacleCallback(const asv_msgs::StateArray::ConstPtr &msg)
+{
+  obstacles_ = msg->states;
+}
+
+void VelocityObstacleNode::initializeMarkers()
+{
+  // Setup marker message
+  marker_.header.stamp = ros::Time::now();
+  marker_.header.frame_id = std::string("asv");
+  marker_.ns = std::string("asv");
+  marker_.type = visualization_msgs::Marker::POINTS;
+  marker_.action = visualization_msgs::Marker::ADD;
+  //marker_.pose = geometry_msgs::Pose();
+  marker_.scale.x = 0.5;
+  marker_.scale.y = 0.5;
+
+
+  vo_->initializeMarker(&marker_);
 }

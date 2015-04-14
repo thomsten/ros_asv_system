@@ -29,26 +29,27 @@ namespace asv_ctrl_vo {
 
   private:
 
-    void clearMarkers();
-    void initializeMarker();
+    void asvCallback(const nav_msgs::Odometry::ConstPtr &msg);
+    void obstacleCallback(const asv_msgs::StateArray::ConstPtr &msg);
+
+    void initializeMarkers();
 
     VelocityObstacle *vo_;
 
     visualization_msgs::Marker marker_;
 
+    Eigen::Vector3d asv_pose_;
+    Eigen::Vector3d asv_twist_;
 
     std::vector<asv_msgs::State> obstacles_;
 
     base_local_planner::OdometryHelperRos odom_helper_;
 
     // ROS API
-    ros::Publisher cmd_pub_;
     ros::Publisher mk_pub_;
 
     ros::Subscriber obstacle_sub_;
-    ros::Subscriber og_sub_;
     ros::Subscriber asv_sub_;
-    ros::Subscriber cmd_sub_; // Subscribe to LOS commands.
   };
 
 }
