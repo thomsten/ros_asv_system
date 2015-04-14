@@ -54,7 +54,7 @@ void VelocityObstacle::update()
 void VelocityObstacle::updateVelocityGrid()
 {
   const double RAD2DEG = 180.0/M_PI;
-  const double OBJVAL_SCALE = 11.0
+  const double OBJVAL_SCALE = 11.0;
 
   double u0 = 0, u = 0;
   double theta0 = -MAX_ANG_ + asv_pose_[2], t = 0;
