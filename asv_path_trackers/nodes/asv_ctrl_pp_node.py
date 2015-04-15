@@ -174,6 +174,15 @@ class PurePursuit(Controller):
             print "Error. No waypoints!"
             return 0,0,False
 
+        xk = self.wp[self.cWP][0]
+        yk = self.wp[self.cWP][1]
+
+        psi_d = np.arctan2(yk-y , xk-x)
+
+
+        if self.R2 > 999999:
+            return 0, psi_d, False
+
         switched = False
 
         if self.switching_criterion(x, y):
@@ -183,19 +192,15 @@ class PurePursuit(Controller):
                     switched = True
                 else:
                     # Last waypoint reached
-                    if self.R2 < 50000:
+                    if self.R2 < 999999:
                         print "Waypoint %d: (%.2f, %.2f) reached!" % (self.cWP,
                                                                       self.wp[self.cWP][0],
                                                                       self.wp[self.cWP][1])
                         print "Last Waypoint reached!"
                         self.R2 = np.Inf
-                    return 0,0,False
+                        return 0, psi_d, False
 
 
-        xk = self.wp[self.cWP][0]
-        yk = self.wp[self.cWP][1]
-
-        psi_d = np.arctan2(yk-y , xk-x)
 
         return self.u_d, psi_d, switched
 

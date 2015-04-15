@@ -17,7 +17,6 @@ void rot2d(const Eigen::Vector2d &v, double yaw, Eigen::Vector2d &result);
 VelocityObstacle::VelocityObstacle() : EDGE_SAMPLES_(10),
                                        VEL_SAMPLES_(41),
                                        ANG_SAMPLES_(101),
-                                       GRID_RES_(0.1),
                                        RADIUS_(10.0),
                                        MAX_VEL_(4.0),
                                        MAX_ANG_(2.0944),
@@ -103,14 +102,9 @@ void VelocityObstacle::updateVelocityGrid()
     Eigen::Vector2d vb;
     rot2d(obstacle_twist.head(2), obstacle_pose[2], vb);
 
-    /// @todo ???
-    // Check if we are in a possible COLREGs situation
-    // if (pab.norm() > MIN_DIST_)
-    //   continue;
-
     double vab_norm = (vb-va).norm();
     double t_cpa = 0.0;
-    if (vab_norm > 0.1)
+    if (vab_norm > 0.0001)
       {
         t_cpa = -pab.dot(vb-va)/(vab_norm*vab_norm);
       }
@@ -146,7 +140,7 @@ void VelocityObstacle::updateVelocityGrid()
         uerr = fabs(u - va_ref[0]);
         terr = fabs(t - va_ref[1]);
 
-        objval = (0.05*uerr*uerr + 0.95*terr*terr) / OBJVAL_SCALE;
+        objval = (0.1*uerr*uerr + 0.85*terr*terr) / OBJVAL_SCALE;
 
         if (collision_situation && inVelocityObstacle(u, t, lb, rb, vb))
           {
@@ -154,7 +148,7 @@ void VelocityObstacle::updateVelocityGrid()
           }
         else if (collision_situation && violatesColregs(u, t, obstacle_pose, vb))
           {
-            setVelocity(u_it, t_it, VELOCITY_VIOLATES_COLREGS);
+            setVelocity(u_it, t_it, VELOCITY_VIOLATES_COLREGS + objval/2.0);
           }
         else
           {
@@ -248,7 +242,7 @@ bool VelocityObstacle::inVelocityObstacle(const double &u,
 {
   Eigen::Vector2d va(u*cos(theta), u*sin(theta));
 
-  return ((va-vb).dot(lb) >= 0 && (va-vb).dot(rb) >= 0);
+  return ((va-vb).dot(lb) >= 0.0 && (va-vb).dot(rb) >= 0.0);
 }
 
 bool VelocityObstacle::violatesColregs(const double &u,
@@ -264,17 +258,18 @@ bool VelocityObstacle::violatesColregs(const double &u,
   const double DEG2RAD = M_PI/180.0f;
 
   // The limits are found in Loe, 2008.
-  if (0.0 <= alpha or alpha < 15*DEG2RAD)
+  if ((0.0 <= alpha && alpha < 15.0*DEG2RAD) ||
+      (345.0*DEG2RAD <= alpha && alpha < 360.0*DEG2RAD))
     {
       // Head-on: COLREGs applicaple if the following relation holds (Kuwata et. al., 2014)
-      return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0);
+      return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] <= 0.0);
     }
-  else if (15.0*DEG2RAD <= alpha or alpha < 112.5*DEG2RAD)
+  else if (15.0*DEG2RAD <= alpha && alpha < 112.5*DEG2RAD)
     {
       // Crossing from right
-      return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0);
+      return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] <= 0.0);
     }
-  else if (247.5*DEG2RAD <= alpha or alpha < 345.0*DEG2RAD)
+  else if (247.5*DEG2RAD <= alpha && alpha < 345.0*DEG2RAD)
     {
       // Crossing from left: No COLREGs
       return false;
@@ -283,7 +278,8 @@ bool VelocityObstacle::violatesColregs(const double &u,
     {
       // The remaining: Overtaking
       // 112.5*DEG2RAD <= alpha or alpha < 247.5*DEG2RAD
-      return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0);
+      // Passing on both sides allowed.
+      return false; //(pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] <= 0.0);
     }
 }
 

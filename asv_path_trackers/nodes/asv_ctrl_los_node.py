@@ -176,6 +176,10 @@ class LOSGuidance(Controller):
             print "Error. No waypoints!"
             return 0,0,False
 
+        if self.R2 > 999999:
+            # Last waypoint has been reached.
+            return 0, self.Xp, False
+
         #print self.wp[self.cWP,:], str(self)
         switched = False
 
@@ -201,8 +205,7 @@ class LOSGuidance(Controller):
                                                                       self.wp[self.cWP][1])
                         print "Last Waypoint reached!"
                         self.R2 = np.Inf
-                    return 0,0,False
-
+                    return 0, self.Xp, False
 
         xk = self.wp[self.cWP][0]
         yk = self.wp[self.cWP][1]

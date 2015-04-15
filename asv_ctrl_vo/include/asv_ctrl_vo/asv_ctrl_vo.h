@@ -80,7 +80,6 @@ class VelocityObstacle
   const double RADIUS_;
   const double MAX_VEL_;
   const double MAX_ANG_;
-  const double GRID_RES_;
   const double MIN_DIST_;
 
   const int EDGE_SAMPLES_;

@@ -30,7 +30,6 @@ if __name__ == "__main__":
 
     ships = rospy.get_param("~obstacles")
 
-
     statearray = StateArray()
 
     sublst = []
