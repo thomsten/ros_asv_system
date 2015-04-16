@@ -1,0 +1,31 @@
+<launch>
+  <include file="$(find asv_simulator)/launch/default.launch">
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/south_to_north.yaml" />
+    <arg name="u_d" value="4.0" />
+  </include>
+
+  <!-- Obstacle ship -->
+  <include file="$(find asv_simulator)/launch/default.launch">
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/in_between_rules.yaml" />
+    <arg name="use_vo" value="False" />
+    <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship1.urdf" />
+    <arg name="namespace" value="obstacles/ship1" />
+    <arg name="shipname" value="ship1" />
+    <arg name="initial_state" value="[25, 25.0, 1.57, 2.,0.,0.]" />
+    <arg name="u_d" value="2.0"/>
+  </include>
+
+  <include file="$(find asv_obstacle_tracker)/launch/default.launch"/>
+
+
+  <node pkg="rviz"
+        type="rviz"
+        name="rviz"
+        args="-d $(find asv_simulator)/config/rviz/two_vessels.rviz" />
+
+  <node pkg="rosbag"
+        type="record"
+        name="rosbag_record"
+        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/in_between_rules.bag /asv/state /obstacles/ship1/state"
+        />
+</launch>
