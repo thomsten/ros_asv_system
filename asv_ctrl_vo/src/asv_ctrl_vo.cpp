@@ -13,6 +13,7 @@
 
 
 void rot2d(const Eigen::Vector2d &v, double yaw, Eigen::Vector2d &result);
+void normalize_angle(double &angle);
 
 VelocityObstacle::VelocityObstacle() : EDGE_SAMPLES_(10),
                                        VEL_SAMPLES_(41),
@@ -130,7 +131,7 @@ void VelocityObstacle::updateVelocityGrid()
     pab = pab/pab.norm();
     rot2d(pab,  alpha - 0.5*M_PI, lb);
     rot2d(pab, -alpha + 0.5*M_PI, rb);
-
+    bool colregs = false;
     for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
       for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
         /// @todo
@@ -149,6 +150,7 @@ void VelocityObstacle::updateVelocityGrid()
         else if (collision_situation && violatesColregs(u, t, obstacle_pose, vb))
           {
             setVelocity(u_it, t_it, VELOCITY_VIOLATES_COLREGS + objval/2.0);
+            colregs = true;
           }
         else
           {
@@ -160,6 +162,9 @@ void VelocityObstacle::updateVelocityGrid()
           }
       }
     }
+    if (colregs)
+      ROS_INFO("Changed: tcpa,dcpa: (%.2f,%.2f)", t_cpa, d_cpa);
+
   }
 }
 
@@ -255,6 +260,13 @@ bool VelocityObstacle::violatesColregs(const double &u,
 
   // Relative bearing (Loe, 2008)
   double alpha = atan2(pdiff[1], pdiff[0]) - obstacle_pose[2];
+  // Normalize the angle [0, 2*PI)
+  while (angle <= 0)
+    angle += 2*M_PI;
+  while(angle > 2*M_PI)
+    angle -= 2*M_PI;
+
+
   const double DEG2RAD = M_PI/180.0f;
 
   // The limits are found in Loe, 2008.
@@ -262,12 +274,12 @@ bool VelocityObstacle::violatesColregs(const double &u,
       (345.0*DEG2RAD <= alpha && alpha < 360.0*DEG2RAD))
     {
       // Head-on: COLREGs applicaple if the following relation holds (Kuwata et. al., 2014)
-      return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] <= 0.0);
+      return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0.0);
     }
   else if (15.0*DEG2RAD <= alpha && alpha < 112.5*DEG2RAD)
     {
       // Crossing from right
-      return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] <= 0.0);
+      return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0.0);
     }
   else if (247.5*DEG2RAD <= alpha && alpha < 345.0*DEG2RAD)
     {

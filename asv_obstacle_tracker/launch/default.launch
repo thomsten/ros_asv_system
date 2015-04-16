@@ -4,6 +4,6 @@
         type="obstacle_tracker_node.py"
         respawn="false"
         output="screen">
-    <rosparam param="obstacles">["ship1"]</rosparam>
+    <rosparam param="obstacles">["ship1", "ship2"]</rosparam>
   </node>
 </launch>
