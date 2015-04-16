@@ -13,6 +13,13 @@ static const double VELOCITY_VIOLATES_COLREGS = 0.75;
 static const double VELOCITY_NOT_OK = 1.0;
 static const int OCCUPIED_TRESH = 50;
 
+typedef enum {
+  HEAD_ON,
+  CROSSING_LEFT,
+  CROSSING_RIGHT,
+  OVERTAKING
+} colregs_t;
+
 class VelocityObstacle
 {
  public:
@@ -77,10 +84,20 @@ class VelocityObstacle
   
   bool inObstacle(double px, double py);
 
+  bool inCollisionSituation(const Eigen::Vector3d &pose_a,
+                          const Eigen::Vector3d &pose_b,
+                          const Eigen::Vector2d &va,
+                          const Eigen::Vector2d &vb);
+  colregs_t inColregsSituation(const Eigen::Vector3d &pose_a,
+                               const Eigen::Vector3d &pose_b);
+
   const double RADIUS_;
   const double MAX_VEL_;
   const double MAX_ANG_;
   const double MIN_DIST_;
+
+  const double D_CPA_MIN_;
+  const double T_CPA_MAX_;
 
   const int EDGE_SAMPLES_;
   const int VEL_SAMPLES_;
