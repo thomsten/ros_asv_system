@@ -97,6 +97,8 @@ void VelocityObstacle::updateVelocityGrid()
     Eigen::Vector3d obstacle_pose = Eigen::Vector3d(it->x, it->y, it->psi);
     Eigen::Vector3d obstacle_twist = Eigen::Vector3d(it->u, it->v, it->r);
 
+    double combined_radius = RADIUS_ + it->header.radius;
+
     Eigen::Vector2d vb;
     rot2d(obstacle_twist.head(2), obstacle_pose[2], vb);
 
@@ -110,8 +112,8 @@ void VelocityObstacle::updateVelocityGrid()
     // Collsion situation detected
     // Find velocity obstacle region
     double pab_norm = pab.norm(), alpha = 0.5*M_PI;
-    if (pab_norm >= 2*RADIUS_)
-      alpha = asin(2*RADIUS_ / pab_norm);
+    if (pab_norm >= combined_radius)
+      alpha = asin(combined_radius / pab_norm);
 
     // Left and right bounds pointing inwards to the VO. (Guy et. al. 2009)
     Eigen::Vector2d lb, rb;
@@ -119,7 +121,6 @@ void VelocityObstacle::updateVelocityGrid()
     rot2d(pab,  alpha - 0.5*M_PI, lb);
     rot2d(pab, -alpha + 0.5*M_PI, rb);
 
-    bool test1 = false, test2=false;
     for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
       for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
         /// @todo
@@ -134,7 +135,6 @@ void VelocityObstacle::updateVelocityGrid()
         if (collision_situation && inVelocityObstacle(u, t, lb, rb, vb))
           {
             setVelocity(u_it, t_it, VELOCITY_NOT_OK);
-            test1 = true;
           }
         else if ((collision_situation &&
                   (colregs_situation == HEAD_ON ||
@@ -142,7 +142,6 @@ void VelocityObstacle::updateVelocityGrid()
                   violatesColregs(u, t, obstacle_pose, vb)))
           {
             setVelocity(u_it, t_it, VELOCITY_VIOLATES_COLREGS + objval/2.0);
-            test2 = true;
           }
         else
           {
@@ -153,17 +152,6 @@ void VelocityObstacle::updateVelocityGrid()
             setVelocity(u_it, t_it, objval);
           }
       }
-    }
-    if (!test1 and test2){
-      ROS_INFO("wtf m8! asv: (%.2f, %.2f, %.2f) obst: (%.2f, %.2f, %.2f)",
-               asv_pose_[0], asv_pose_[1], asv_pose_[2],
-               obstacle_pose[0], obstacle_pose[1], obstacle_pose[2]);
-      ROS_INFO("lb: (%.2f,%.2f), rb: (%.2f,%.2f), vb: (%.2f,%.2f), pab: (%.2f,%.2f), pab.norm: %.2f",
-               lb[0], lb[1],
-               rb[0], rb[1],
-               vb[0], vb[1],
-               pab[0], pab[1],
-               pab.norm());
     }
   }
 }
