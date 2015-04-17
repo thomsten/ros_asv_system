@@ -29,6 +29,6 @@
   <node pkg="rosbag"
         type="record"
         name="rosbag_record"
-        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/test_static_obstacle.bag /asv/state /obstacles/ship1/state"
+        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/head_on_with_no_clearance.bag /asv/state /obstacles/ship1/state"
         />
 </launch>
