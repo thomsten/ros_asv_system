@@ -1,0 +1,18 @@
+<launch>
+  <include file="$(find asv_simulator)/launch/default.launch"/>
+  <include file="$(find asv_simulator)/launch/two_obstacles.launch"/>
+  <include file="$(find asv_obstacle_tracker)/launch/default.launch"/>
+
+  <node pkg="rviz"
+        type="rviz"
+        name="rviz"
+        args="-d $(find asv_simulator)/config/rviz/three_vessels.rviz" />
+
+
+  <node pkg="rosbag"
+        type="record"
+        name="rosbag_record"
+        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/overtaking_and_crossing.bag /asv/state /obstacles/ship1/state /obstacles/ship2/state"
+        />
+
+</launch>
