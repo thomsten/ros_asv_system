@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 ## System dependencies are found with CMake's conventions
+find_package(cmake_modules REQUIRED)
 find_package(Eigen REQUIRED)
 
 ## Generate messages in the 'msg' folder

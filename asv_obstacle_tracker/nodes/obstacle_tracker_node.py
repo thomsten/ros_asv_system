@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
-import rospy, tf
+import rospy
 
 from nav_msgs.msg import Odometry
 from asv_msgs.msg import State, StateArray
 
 import numpy as np
 
+def quat2yaw(q):
+    return np.arctan2(2*(q[1]*q[2] + q[3]*q[0]), 1 - 2*(q[2]**2 + q[3]**2))
 
 
 def obstacleCallback(data, num):
@@ -14,11 +16,10 @@ def obstacleCallback(data, num):
          data.pose.pose.orientation.y,
          data.pose.pose.orientation.z,
          data.pose.pose.orientation.w)
-    r,p,y = tf.transformations.euler_from_quaternion(q)
 
     statearray.states[num].x = data.pose.pose.position.x
     statearray.states[num].y = data.pose.pose.position.y
-    statearray.states[num].psi = y
+    statearray.states[num].psi = quat2yaw(q)
     statearray.states[num].u = data.twist.twist.linear.x
     statearray.states[num].v = data.twist.twist.linear.y
     statearray.states[num].r = data.twist.twist.angular.z

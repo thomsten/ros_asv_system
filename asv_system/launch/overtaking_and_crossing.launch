@@ -12,7 +12,7 @@
   <node pkg="rosbag"
         type="record"
         name="rosbag_record"
-        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/overtaking_and_crossing.bag /asv/state /obstacles/ship1/state /obstacles/ship2/state"
+        args="-O /home/thomsten/ROSdev/indigo/src/asv_system/bagfiles/overtaking_and_crossing.bag /asv/state /obstacles/ship1/state /obstacles/ship2/state"
         />
 
 </launch>

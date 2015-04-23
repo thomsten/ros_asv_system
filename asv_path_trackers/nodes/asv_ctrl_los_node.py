@@ -4,9 +4,6 @@ import rospy
 import geometry_msgs.msg
 import nav_msgs.msg
 from visualization_msgs.msg import Marker
-
-from matplotlib.patches import Circle
-
 from utils import Controller
 
 class LOSGuidanceROS(object):
@@ -18,10 +15,9 @@ class LOSGuidanceROS(object):
         self.nwp  = 0
         self.cwp  = 0
 
-        self._cmd_publisher   = rospy.Publisher("cmd_vel", geometry_msgs.msg.Twist)
-        self._odom_subscriber = rospy.Subscriber("state", nav_msgs.msg.Odometry, self._odom_callback)
-        self._wps_publisher   = rospy.Publisher("waypoints", Marker)
-
+        self._cmd_publisher   = rospy.Publisher("cmd_vel", geometry_msgs.msg.Twist, queue_size=1)
+        self._odom_subscriber = rospy.Subscriber("state", nav_msgs.msg.Odometry, self._odom_callback, queue_size=1)
+        self._wps_publisher   = rospy.Publisher("waypoints", Marker, queue_size=10)
 
         self.odom = nav_msgs.msg.Odometry()
         self.cmd  = geometry_msgs.msg.Twist()
