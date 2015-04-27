@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package>
+  <name>asv_state_estimator</name>
+  <version>1.0.0</version>
+  <description>
+    The package provides a state estimator for fusing GPS and IMU data.
+  </description>
+
+  <maintainer email="stenersen.thomas@gmail.com">Thomas Stenersen</maintainer>
+
+  <license>MIT</license>
+
+  <url type="repository">http://github.com/thomsten/ros_asv_system</url>
+
+  <author email="stenersen.thomas@gmail.com">Thomas Stenersen</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>tf</build_depend>
+
+  <run_depend>rospy</run_depend>
+  <run_depend>tf</run_depend>
+  
+</package>

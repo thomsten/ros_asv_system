@@ -1,0 +1,6 @@
+image: hovik.png
+resolution: 0.78
+origin: [-496.0, -560., 0.0]
+occupied_thresh: 0.4
+free_thresh: 0.05
+negate: 1
