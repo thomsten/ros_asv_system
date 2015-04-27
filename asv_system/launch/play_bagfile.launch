@@ -1,0 +1,5 @@
+<launch>
+  <arg name="path" default="$(find asv_system)/bagfiles/" />
+  <arg name="file_1" default="2015-04-22-15-25-25.bag" />
+  <node pkg="rosbag" type="play" name="player" output="screen" args="--clock $(arg path)$(arg file_1)"/>
+</launch>

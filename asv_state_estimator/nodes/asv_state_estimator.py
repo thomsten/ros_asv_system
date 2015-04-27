@@ -6,8 +6,12 @@ import geometry_msgs
 import sensor_msgs
 
 from tf.transformations import quaternion_from_euler as euler2quat
-from nav_msgs.msg import Odometry
 
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Quaternion
+from geometry_msgs.msg import Vector3
+from sensor_msgs.msg import NavSatFix
+from sensor_msgs.msg import Imu
 
 import numpy as np
 
@@ -18,22 +22,25 @@ class StateEstimator(object):
 
         self.lat0 = lat0
         self.lon0 = lon0
-        self.cos_lon0 = np.cos(lon)
-        self.cos_lat0 = np.cos(lat)
-        self.sin_lon0 = np.sin(lon)
-        self.sin_lat0 = np.sin(lat)
+        self.cos_lon0 = np.cos(lon0)
+        self.cos_lat0 = np.cos(lat0)
+        self.sin_lon0 = np.sin(lon0)
+        self.sin_lat0 = np.sin(lat0)
         self.ecef0 = self.geod2ecef(self.lat0, self.lon0, 0.0)
 
         self.odom = Odometry()
+        self.odom.header.frame_id = "ned"
+        self.odom.child_frame_id = "asv"
         self.first_gps_message = True
 
         self.gps_pos = np.zeros((2,1))
-        self.imu_ang = geometry_msgs.Quaternion()
-        self.imu_angvel = geometry_msgs.Vector3()
+        self.imu_ang = Quaternion()
+        self.imu_angvel = Vector3()
 
-        self.gps_sub = rospy.Subscriber(gps_topic, sensor_msgs.NavSatFix, self.gpsCallback)
-        self.imu_sub = rospy.Subscriber(imu_topic, sensor_msgs.Imu, self.imuCallback)
+        self.gps_sub = rospy.Subscriber(gps_topic, NavSatFix, self.gpsCallback)
+        self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imuCallback)
         self.odom_pub = rospy.Publisher("/asv/state", Odometry, queue_size=10)
+        self.tf_br = tf.TransformBroadcaster()
 
     def geod2ecef(self, lat, lon, h):
         sin_lat = np.sin(lat)
@@ -98,15 +105,27 @@ class StateEstimator(object):
 
         self.update_orientation()
 
+        q = np.array([self.odom.pose.pose.orientation.x,
+                      self.odom.pose.pose.orientation.y,
+                      -self.odom.pose.pose.orientation.z,
+                      self.odom.pose.pose.orientation.w])
+
         self.odom.twist.twist.angular = self.imu_angvel
 
+        self.odom.header.stamp = rospy.Time.now()
+
+        self.tf_br.sendTransform((self.gps_pos[0], self.gps_pos[1], 0.0),
+                                 q,
+                                 rospy.Time.now(),
+                                 "asv",
+                                 "ned")
         self.odom_pub.publish(self.odom)
 
 if __name__ == "__main__":
 
     rospy.init_node("state_estimator")
 
-    # The dock outside DNV GL Høvik
+    # The dock outside DNV GL Hovik
     lat0 = 59.88765
     lon0 = 10.56594
 

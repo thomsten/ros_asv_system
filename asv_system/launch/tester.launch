@@ -1,0 +1,44 @@
+<launch>
+  <!-- <include file="$(find asv_system)/launch/play_bagfile.launch" /> -->
+  <!-- <node pkg="asv_state_estimator" -->
+  <!--       type="asv_state_estimator.py" -->
+  <!--       name="state_estimator" -->
+  <!--       output="screen" /> -->
+
+  <node pkg="asv_simulator"
+        name="asv"
+        type="data_publisher.py"
+        respawn="false"
+        output="screen">
+  </node>
+
+
+  <node pkg="tf"
+        type="static_transform_publisher"
+        name="map2ned_broadcaster"
+        args="0 0 0 7.07106781e-01 7.07106781e-01 4.32978028e-17 4.32978028e-17 map ned 100" />
+
+  <group ns="asv">
+    <param name="robot_description" textfile="$(find asv_simulator)/config/models/viknes.urdf" />
+    <node pkg="robot_state_publisher"
+          type="state_publisher"
+          name="tf_broadcaster" />
+  </group>
+
+
+  <include file="$(find asv_system)/launch/mapserver.launch">
+    <arg name="mapfile" value="$(find asv_system)/config/maps/hovik.yaml" />
+  </include>
+
+  <node pkg="asv_simulator"
+        name="map_mesh_node"
+        type="meshpublisher.py"
+        respawn="false"
+        output="screen" />
+
+  <node pkg="rviz"
+        type="rviz"
+        name="rviz"
+        args="-d $(find asv_simulator)/config/rviz/one_vessel_with_map.rviz" />
+
+</launch>
