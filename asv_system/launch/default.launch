@@ -1,11 +1,36 @@
 <launch>
-  <include file="$(find asv_simulator)/launch/default.launch"/>
-  <include file="$(find asv_simulator)/launch/two_obstacles.launch"/>
-  <include file="$(find asv_obstacle_tracker)/launch/default.launch"/>
+  <group ns="asv">
+    <node pkg="asv_simulator"
+          name="ASVNode"
+          type="asv_simulator_node"
+          respawn="false"
+          output="screen">
+      <rosparam command="load" file="$(find asv_simulator)/config/parameters/viknes.yaml" />
+      <rosparam param="initial_state">[0.0, 0.0, 3.14, 0.,0.,0.]</rosparam>
+    </node>
+
+    <param name="robot_description" textfile="$(find asv_simulator)/config/models/viknes.urdf" />
+    <node pkg="robot_state_publisher"
+          type="state_publisher"
+          name="tf_broadcaster" />
+  </group>
+
+  <include file="$(find asv_simulator)/launch/control/xboxctrl.launch" />
+
+
+  <include file="$(find asv_system)/launch/mapserver.launch">
+    <arg name="mapfile" value="$(find asv_system)/config/maps/hovik.yaml" />
+  </include>
+
+  <node pkg="asv_simulator"
+        name="map_mesh_node"
+        type="meshpublisher.py"
+        respawn="false"
+        output="screen" />
 
   <node pkg="rviz"
         type="rviz"
         name="rviz"
-        args="-d $(find asv_simulator)/config/rviz/three_vessels.rviz" />
+        args="-d $(find asv_simulator)/config/rviz/one_vessel_with_map.rviz" />
 
 </launch>
