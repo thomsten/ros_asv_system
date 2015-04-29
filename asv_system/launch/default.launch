@@ -1,21 +1,25 @@
 <launch>
-  <group ns="asv">
-    <node pkg="asv_simulator"
-          name="ASVNode"
-          type="asv_simulator_node"
-          respawn="false"
-          output="screen">
-      <rosparam command="load" file="$(find asv_simulator)/config/parameters/viknes.yaml" />
-      <rosparam param="initial_state">[0.0, 0.0, 3.14, 0.,0.,0.]</rosparam>
-    </node>
 
-    <param name="robot_description" textfile="$(find asv_simulator)/config/models/viknes.urdf" />
-    <node pkg="robot_state_publisher"
-          type="state_publisher"
-          name="tf_broadcaster" />
-  </group>
+  <include file="$(find asv_simulator)/launch/default.launch">
+    <arg name="u_d" value="5.0" />
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/clockwise_rectangle.yaml" />
+    <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/viknes.urdf" />
+    <arg name="namespace" value="asv" />
+    <arg name="shipname" value="asv" />
+    <arg name="initial_state" value="[0.0, 0.0, -1.56, 1.,0.,0.]" />
+  </include>
 
-  <include file="$(find asv_simulator)/launch/control/xboxctrl.launch" />
+  <!-- Obstacle ship -->
+  <include file="$(find asv_simulator)/launch/default.launch">
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/west_to_east.yaml" />
+    <arg name="use_vo" value="False" />
+    <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship1.urdf" />
+    <arg name="namespace" value="obstacles/ship1" />
+    <arg name="shipname" value="ship1" />
+    <arg name="initial_state" value="[-150.0, -150.0, 0.0, 1.,2.,3.]" />
+  </include>
+
+  <include file="$(find asv_obstacle_tracker)/launch/default.launch"/>
 
 
   <include file="$(find asv_system)/launch/mapserver.launch">
@@ -31,6 +35,6 @@
   <node pkg="rviz"
         type="rviz"
         name="rviz"
-        args="-d $(find asv_simulator)/config/rviz/one_vessel_with_map.rviz" />
+        args="-d $(find asv_simulator)/config/rviz/two_vessels.rviz" />
 
 </launch>

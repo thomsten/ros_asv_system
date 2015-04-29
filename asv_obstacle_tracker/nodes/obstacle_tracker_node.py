@@ -8,7 +8,7 @@ from asv_msgs.msg import State, StateArray
 import numpy as np
 
 def quat2yaw(q):
-    return np.arctan2(2*(q[1]*q[2] + q[3]*q[0]), 1 - 2*(q[2]**2 + q[3]**2))
+    return np.arctan2(2*(q[0]*q[1] + q[2]*q[3]), 1 - 2*(q[1]**2 + q[2]**2))
 
 
 def obstacleCallback(data, num):

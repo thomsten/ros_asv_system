@@ -11,7 +11,7 @@
 static const double VELOCITY_OK = 0.0;
 static const double VELOCITY_VIOLATES_COLREGS = 0.75;
 static const double VELOCITY_NOT_OK = 1.0;
-static const int OCCUPIED_TRESH = 50;
+static const int OCCUPIED_TRESH = 40;
 
 typedef enum {
   HEAD_ON,
@@ -117,6 +117,8 @@ class VelocityObstacle
   std::vector<asv_msgs::State> *obstacles_;
   nav_msgs::OccupancyGrid *map_;
   visualization_msgs::Marker *marker_;
+  nav_msgs::OccupancyGrid local_map_;
+  ros::Publisher lm_pub;
 };
 
 

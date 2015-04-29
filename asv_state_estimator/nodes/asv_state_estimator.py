@@ -10,14 +10,24 @@ from tf.transformations import quaternion_from_euler as euler2quat
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion
 from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import TwistStamped
 from sensor_msgs.msg import NavSatFix
 from sensor_msgs.msg import Imu
 
 import numpy as np
 
+DEG2RAD = np.pi / 180.0
+
+def normalize_angle(angle):
+    """Ensure angle within [-PI, PI)"""
+    while angle < np.pi:
+        angle -= 2.0*np.pi
+    while angle <= -np.pi:
+        angle += 2.0*np.pi
+    return angle
 
 class StateEstimator(object):
-    def __init__(self, lat0, lon0, gps_topic="/gps", imu_topic="/imu"):
+    def __init__(self, lat0, lon0, fix_topic="/fix", vel_topic="/vel", imu_topic="/imu"):
         self.ecef0 = np.zeros((3,1))
 
         self.lat0 = lat0
@@ -29,16 +39,24 @@ class StateEstimator(object):
         self.ecef0 = self.geod2ecef(self.lat0, self.lon0, 0.0)
 
         self.odom = Odometry()
-        self.odom.header.frame_id = "ned"
+        self.odom.header.frame_id = "map"
         self.odom.child_frame_id = "asv"
         self.first_gps_message = True
 
         self.gps_pos = np.zeros((2,1))
-        self.imu_ang = Quaternion()
-        self.imu_angvel = Vector3()
+        self.gps_vel = np.zeros((2,1))
+        self.imu_ang = np.array([0,0,0,1])
+        self.imu_angvel = np.zeros((3,1))
+        self.yaw_correction = 0.0
 
-        self.gps_sub = rospy.Subscriber(gps_topic, NavSatFix, self.gpsCallback)
+        self.gps_fix = False
+        self.gps_course = 0.0
+
+
+        self.fix_sub = rospy.Subscriber(fix_topic, NavSatFix, self.fixCallback)
+        self.vel_sub = rospy.Subscriber(vel_topic, TwistStamped, self.velCallback)
         self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imuCallback)
+
         self.odom_pub = rospy.Publisher("/asv/state", Odometry, queue_size=10)
         self.tf_br = tf.TransformBroadcaster()
 
@@ -79,38 +97,76 @@ class StateEstimator(object):
         p_ned = np.dot(rot, p_ecef)
         return p_ned
 
+    def ned2enu(self, ned):
+        """Convert NED position to ENU position"""
+        if len(ned) < 3:
+            return np.array([ned[1], ned[0]])
+        else:
+            return np.array([ned[1], ned[0], -ned[2]])
 
-    def gpsCallback(self, msg):
-        lat = msg.latitude
-        lon = msg.longitude
-        h = msg.height
+
+    def fixCallback(self, msg):
+        lat = msg.latitude * DEG2RAD
+        lon = msg.longitude * DEG2RAD
+        h = msg.altitude
+
+        if msg.status.status < 0:
+            self.gps_fix = False
+            return
+        else:
+            self.gps_fix = True
 
         ecef = self.geod2ecef(lat, lon, h)
 
-        p_ned = self.ecef2ned(ecef)
+        ned = self.ecef2ned(ecef)
+        enu = self.ned2enu(ned)
 
-        self.gps_pos = p_ned[0:2]
+        # Filter constants
+        alpha = 0.5
+        beta  = 1-alpha
+
+        self.gps_course = alpha * self.gps_course + \
+                          beta  * np.arctan2(enu[1] - self.gps_pos[0], enu[0] - self.gps_pos[0])
+
+        self.gps_pos = enu[0:2]
+
+    def velCallback(self, msg):
+        self.gps_vel[0] = msg.twist.linear.x
+        self.gps_vel[1] = msg.twist.linear.y
 
     def imuCallback(self, msg):
-        self.imu_ang = msg.orientation
-        self.imu_angvel = msg.angular_velocity
+        self.imu_ang = np.array([msg.orientation.x,
+                                 msg.orientation.y,
+                                 msg.orientation.z,
+                                 msg.orientation.w])
+        self.imu_angvel = np.array([msg.angular_velocity.x,
+                                    msg.angular_velocity.y,
+                                    msg.angular_velocity.z])
 
     def update_orientation(self):
-        ## @todo Filter yaw
-        self.odom.pose.pose.orientation = self.imu_ang
+        # Update yaw correction if gps fix is ok, speed is above 0.5 m/s and yaw rate below 0.5 m/s
+        if (self.gps_fix and \
+            self.odom.twist.twist.linear.x > 0.5 and \
+            self.odom.twist.twist.angular.z < 0.5):
+            self.yaw_correction = normalize_angle(self.gps_course - quat2yaw(self.imu_ang))
+
+
+        q = self.imu_ang #+ euler2quat(0,0,self.yaw_correction)
+        q = q / np.linalg.norm(q)
+
+        self.odom.pose.pose.orientation = Quaternion(*q)
+
+        return q
 
     def update(self):
         self.odom.pose.pose.position.x = self.gps_pos[0]
         self.odom.pose.pose.position.y = self.gps_pos[1]
 
-        self.update_orientation()
+        q = self.update_orientation()
 
-        q = np.array([self.odom.pose.pose.orientation.x,
-                      self.odom.pose.pose.orientation.y,
-                      -self.odom.pose.pose.orientation.z,
-                      self.odom.pose.pose.orientation.w])
-
-        self.odom.twist.twist.angular = self.imu_angvel
+        self.odom.twist.twist.linear.x = self.gps_vel[0]
+        self.odom.twist.twist.linear.y = self.gps_vel[1]
+        self.odom.twist.twist.angular = Vector3(*self.imu_angvel)
 
         self.odom.header.stamp = rospy.Time.now()
 
@@ -118,7 +174,7 @@ class StateEstimator(object):
                                  q,
                                  rospy.Time.now(),
                                  "asv",
-                                 "ned")
+                                 "map")
         self.odom_pub.publish(self.odom)
 
 if __name__ == "__main__":
@@ -126,12 +182,12 @@ if __name__ == "__main__":
     rospy.init_node("state_estimator")
 
     # The dock outside DNV GL Hovik
-    lat0 = 59.88765
-    lon0 = 10.56594
+    lat0 = 59.88765 * DEG2RAD
+    lon0 = 10.56594 * DEG2RAD
 
-    state_estimator = StateEstimator(lat0, lon0, gps_topic="/gps", imu_topic="/imu")
+    state_estimator = StateEstimator(lat0, lon0, fix_topic="/fix", vel_topic="/vel", imu_topic="/imu")
 
-    r = rospy.Rate(0.1)
+    r = rospy.Rate(10)
     while not rospy.is_shutdown():
 
         state_estimator.update()

@@ -6,17 +6,17 @@
   <!--       output="screen" /> -->
 
   <node pkg="asv_simulator"
-        name="asv"
-        type="data_publisher.py"
+        name="fake_asv"
+        type="fake_asv.py"
         respawn="false"
         output="screen">
   </node>
 
-
-  <node pkg="tf"
-        type="static_transform_publisher"
-        name="map2ned_broadcaster"
-        args="0 0 0 7.07106781e-01 7.07106781e-01 4.32978028e-17 4.32978028e-17 map ned 100" />
+  <node pkg="asv_state_estimator"
+        name="asv"
+        type="asv_state_estimator.py"
+        respawn="false"
+        output="screen" />
 
   <group ns="asv">
     <param name="robot_description" textfile="$(find asv_simulator)/config/models/viknes.urdf" />

@@ -14,6 +14,8 @@
 
 void rot2d(const Eigen::Vector2d &v, double yaw, Eigen::Vector2d &result);
 void normalize_angle(double &angle);
+void normalize_angle(double &alpha);
+void normalize_angle_diff(double &angle, const double &angle_ref);
 
 VelocityObstacle::VelocityObstacle() : EDGE_SAMPLES_(10),
                                        VEL_SAMPLES_(41),
@@ -33,13 +35,24 @@ VelocityObstacle::~VelocityObstacle()
 {
 }
 
-void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles, nav_msgs::OccupancyGrid *map)
+void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles,
+                                  nav_msgs::OccupancyGrid *map)
 {
 
   ROS_INFO("Initializing VO-node...");
 
   vo_grid_.resize(ANG_SAMPLES_*VEL_SAMPLES_);
 
+  local_map_.header.frame_id ="map";
+  local_map_.info.resolution = 0.78;
+  local_map_.info.width  = 1362;
+  local_map_.info.height = 942;
+  local_map_.info.origin.position.x = -(float)496;
+  local_map_.info.origin.position.y = -(float)560;
+
+  local_map_.data.resize(local_map_.info.width*local_map_.info.height);
+  ros::NodeHandle n;
+  lm_pub = n.advertise<nav_msgs::OccupancyGrid>("localmap", 5);
   obstacles_ = obstacles;
   map_ = map;
 
@@ -60,6 +73,7 @@ void VelocityObstacle::updateVelocityGrid()
 
   double u0 = 0, u = 0;
   double theta0 = -MAX_ANG_ + asv_pose_[2], t = 0;
+
   double du = MAX_VEL_/VEL_SAMPLES_;
   double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
 
@@ -82,6 +96,7 @@ void VelocityObstacle::updateVelocityGrid()
           /// @todo
           u = u0 + u_it*du;
           t = theta0 + t_it*dtheta;
+          normalize_angle_diff(t, va_ref[1]);
 
           uerr = fabs(u - va_ref[0]);
           terr = fabs(t - va_ref[1]);
@@ -106,6 +121,9 @@ void VelocityObstacle::updateVelocityGrid()
     bool collision_situation = inCollisionSituation(asv_pose_, obstacle_pose, va, vb);
     colregs_t colregs_situation = inColregsSituation(asv_pose_, obstacle_pose);
 
+    // ROS_INFO("colsit: %d, coltype: %d", (int)collision_situation,(int) colregs_situation);
+    // ROS_INFO("va: (%.2f, %.2f), %.2f, vb: (%.2f, %.2f), %.2f %.2f", va[0], va[1], asv_pose_[2]*RAD2DEG, vb[0], vb[1], va_ref[1]*RAD2DEG, obstacle_pose[2]*RAD2DEG);
+
     Eigen::Vector2d pab = -asv_pose_.head(2) + obstacle_pose.head(2);
 
 
@@ -126,11 +144,17 @@ void VelocityObstacle::updateVelocityGrid()
         /// @todo
         u = u0 + u_it*du;
         t = theta0 + t_it*dtheta;
+        normalize_angle_diff(t, va_ref[1]);
 
         uerr = fabs(u - va_ref[0]);
         terr = fabs(t - va_ref[1]);
 
-        objval = (0.1*uerr*uerr + 0.85*terr*terr) / OBJVAL_SCALE;
+        objval = (0.05*uerr*uerr + 0.95*terr*terr) / OBJVAL_SCALE;
+        if (objval > 1.0)
+          {
+            ROS_INFO("Objective value: %.2f, u,t = (%.2f, %.2f), tref: %.2f", objval, u, t*RAD2DEG, va_ref[1]*RAD2DEG);
+            objval = 1.0;
+          }
 
         if (collision_situation && inVelocityObstacle(u, t, lb, rb, vb))
           {
@@ -158,6 +182,10 @@ void VelocityObstacle::updateVelocityGrid()
 
 void VelocityObstacle::checkStaticObstacles()
 {
+
+  for (int i=0;i < local_map_.data.size(); ++i)
+    local_map_.data[i] = 0;
+
   if (map_ == NULL || map_->info.resolution <= 0.0)
     return;
   const double RAD2DEG = 180.0/M_PI;
@@ -165,8 +193,8 @@ void VelocityObstacle::checkStaticObstacles()
   double u = MAX_VEL_, u_min = 0.0;
   double theta = -MAX_ANG_ + asv_pose_[2], theta_max = MAX_ANG_ + asv_pose_[2];
 
-  double du = -MAX_VEL_/VEL_SAMPLES_;
-  double dtheta = 2*MAX_ANG_/ANG_SAMPLES_;
+  double du     = -MAX_VEL_/VEL_SAMPLES_;
+  double dtheta = 2.0*MAX_ANG_/ANG_SAMPLES_;
 
   // The time limit for static obstacles.
   // Assuming u_d = 3.0 m/s, tlim = 40.0 s => safety_region 120 m (head on)
@@ -174,7 +202,7 @@ void VelocityObstacle::checkStaticObstacles()
 
   double dt = map_->info.resolution / MAX_VEL_; /// @todo This size is proportional to the grid size and velocity
 
-  double t = 0;
+  double t = dt;
 
   double px, py, dx, dy;
   double px0 = asv_pose_[0], py0 = asv_pose_[1];
@@ -191,11 +219,15 @@ void VelocityObstacle::checkStaticObstacles()
     dy = sin(theta);
     for (int u_it = VEL_SAMPLES_-1; u_it >= 0; --u_it) {
       // Reset t
-      t = 0;
+      t = dt;
       velocity_ok = true;
       while (t <= t_max) {
         px = px0 + u*dx*t;
         py = py0 + u*dy*t;
+
+        int px_i = (int) round((px - local_map_.info.origin.position.x)/local_map_.info.resolution);
+        int py_i = (int) round((py - local_map_.info.origin.position.y)/local_map_.info.resolution);
+        local_map_.data[px_i + local_map_.info.width*py_i] = 100;
 
         if (inObstacle(px, py))
           {
@@ -224,8 +256,26 @@ void VelocityObstacle::checkStaticObstacles()
     theta += dtheta;
   }
 
+  lm_pub.publish(local_map_);
 }
 
+bool VelocityObstacle::inObstacle(double px, double py)
+{
+  // Assume the map isn't rotated.
+  px -= map_->info.origin.position.x;
+  py -= map_->info.origin.position.y;
+
+  int px_i = (int) round(px / map_->info.resolution);
+  int py_i = (int) round(py / map_->info.resolution);
+
+
+  if ((px_i < 0 || px_i >= map_->info.width ||
+       py_i < 0 || py_i >= map_->info.height))
+    {
+      return false;
+    }
+  return map_->data[px_i + py_i*map_->info.width] > OCCUPIED_TRESH;
+}
 
 bool VelocityObstacle::inVelocityObstacle(const double &u,
                                           const double &theta,
@@ -375,25 +425,6 @@ void VelocityObstacle::getBestControlInput(double &u_best, double &psi_best)
   psi_best = -MAX_ANG_ + ti*dtheta + asv_pose_[2];
 }
 
-bool VelocityObstacle::inObstacle(double px, double py)
-{
-  // Assume the map isn't rotated.
-  px -= map_->info.origin.position.x;
-  py -= map_->info.origin.position.y;
-
-  int px_i = (int) round(px / map_->info.resolution);
-  int py_i = (int) round(py / map_->info.resolution);
-
-
-  if ((px_i < 0 || px_i >= map_->info.width ||
-       py_i < 0 || py_i >= map_->info.height))
-    {
-      return false;
-    }
-
-  return map_->data[px_i + py_i*map_->info.height] > OCCUPIED_TRESH;
-}
-
 bool VelocityObstacle::inCollisionSituation(const Eigen::Vector3d &pose_a,
                                             const Eigen::Vector3d &pose_b,
                                             const Eigen::Vector2d &va,
@@ -463,4 +494,41 @@ void rot2d(const Eigen::Vector2d &v, double yaw, Eigen::Vector2d &result)
   R << cos(yaw), -sin(yaw),
     sin(yaw), cos(yaw);
   result = R*v;
+}
+
+void normalize_angle(double &alpha)
+{
+  while (alpha <= -M_PI)
+    alpha += 2*M_PI;
+  while(alpha > M_PI)
+    alpha -= 2*M_PI;
+}
+
+void normalize_angle_diff(double &angle, const double &angle_ref)
+{
+  double diff = angle_ref - angle;
+
+  if (isinf(angle) || isinf(angle_ref))
+    return;
+
+  // Get angle within 2PI of angle_ref
+  if (diff > 0)
+    {
+      angle = angle + (diff - fmod(diff, 2*M_PI));
+    }
+  else
+    {
+      angle = angle + (diff + fmod(-diff, 2*M_PI));
+    }
+
+  // Make sure angle is on the closest side of angle_ref
+  diff = angle_ref - angle;
+  if (diff > M_PI)
+    {
+      angle += 2*M_PI;
+    }
+  else if (diff < -M_PI)
+    {
+      angle -= 2*M_PI;
+    }
 }

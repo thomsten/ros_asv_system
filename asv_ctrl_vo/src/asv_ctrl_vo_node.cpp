@@ -130,6 +130,13 @@ void VelocityObstacleNode::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &
   map_.info.origin.position.x = msg->info.origin.position.x;
   map_.info.origin.position.y = msg->info.origin.position.y;
 
+  ROS_INFO("r %f, h %d, w%d, px %f, py %f",
+           map_.info.resolution,
+           map_.info.height,
+           map_.info.width,
+           map_.info.origin.position.x,
+           map_.info.origin.position.y);
+
   map_.data = msg->data;
 }
 

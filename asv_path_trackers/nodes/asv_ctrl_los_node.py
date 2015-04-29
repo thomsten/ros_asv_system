@@ -139,7 +139,7 @@ class LOSGuidance(Controller):
     def __init__(self, R2=20**2, u_d = 3.0, switch_criterion='circle'):
         self.R2 = R2 # Radii of acceptance (squared)
         self.R  = np.sqrt(R2)
-        self.de = 30 # Lookahead distance
+        self.de = 50 # Lookahead distance
 
         self.cWP = 0 # Current waypoint
         self.wp = None
