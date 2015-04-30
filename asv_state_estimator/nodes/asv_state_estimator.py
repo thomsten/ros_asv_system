@@ -137,11 +137,12 @@ class StateEstimator(object):
 
     def update_orientation(self):
         # Update yaw correction if gps fix is ok, speed is above 0.5 m/s and yaw rate below 0.5 m/s
+
+        velocity = np.sqrt(self.odom.twist.twist.linear.x**2 + self.odom.twist.twist.linear.y**2)
         if (self.gps_fix and \
-            self.odom.twist.twist.linear.x  > 0.5 and \
+            velocity > 0.1 and \
             self.odom.twist.twist.angular.z < 0.5):
             self.yaw_correction = normalize_angle(self.gps_course - quat2yaw(self.imu_ang))
-
 
         q = self.imu_ang #+ euler2quat(0,0,self.yaw_correction)
         q = q / np.linalg.norm(q)
