@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 import rospy
+import numpy as np
 
 import tf
-import geometry_msgs
-import sensor_msgs
-
-from tf.transformations import quaternion_from_euler as euler2quat
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion
@@ -14,7 +11,8 @@ from geometry_msgs.msg import TwistStamped
 from sensor_msgs.msg import NavSatFix
 from sensor_msgs.msg import Imu
 
-import numpy as np
+from tf.transformations import quaternion_from_euler as euler2quat
+
 
 DEG2RAD = np.pi / 180.0
 
@@ -121,18 +119,12 @@ class StateEstimator(object):
         ned = self.ecef2ned(ecef)
         enu = self.ned2enu(ned)
 
-        # Filter constants
-        alpha = 0.5
-        beta  = 1-alpha
-
-        self.gps_course = alpha * self.gps_course + \
-                          beta  * np.arctan2(enu[1] - self.gps_pos[0], enu[0] - self.gps_pos[0])
-
         self.gps_pos = enu[0:2]
 
     def velCallback(self, msg):
         self.gps_vel[0] = msg.twist.linear.x
         self.gps_vel[1] = msg.twist.linear.y
+        self.gps_course = np.arctan2(self.gps_vel[1], self.gps_vel[0])
 
     def imuCallback(self, msg):
         self.imu_ang = np.array([msg.orientation.x,
@@ -146,7 +138,7 @@ class StateEstimator(object):
     def update_orientation(self):
         # Update yaw correction if gps fix is ok, speed is above 0.5 m/s and yaw rate below 0.5 m/s
         if (self.gps_fix and \
-            self.odom.twist.twist.linear.x > 0.5 and \
+            self.odom.twist.twist.linear.x  > 0.5 and \
             self.odom.twist.twist.angular.z < 0.5):
             self.yaw_correction = normalize_angle(self.gps_course - quat2yaw(self.imu_ang))
 
@@ -161,12 +153,12 @@ class StateEstimator(object):
     def update(self):
         self.odom.pose.pose.position.x = self.gps_pos[0]
         self.odom.pose.pose.position.y = self.gps_pos[1]
-
-        q = self.update_orientation()
-
         self.odom.twist.twist.linear.x = self.gps_vel[0]
         self.odom.twist.twist.linear.y = self.gps_vel[1]
         self.odom.twist.twist.angular = Vector3(*self.imu_angvel)
+
+        q = self.update_orientation()
+
 
         self.odom.header.stamp = rospy.Time.now()
 
@@ -176,6 +168,7 @@ class StateEstimator(object):
                                  "asv",
                                  "map")
         self.odom_pub.publish(self.odom)
+        self.odom.header.seq += 1
 
 if __name__ == "__main__":
 
