@@ -8,9 +8,23 @@ from utils import Controller
 
 class LOSGuidanceROS(object):
     """A ROS wrapper for LOSGuidance()."""
-    def __init__(self, rate, R2=20**2, u_d=3.0, switch_criterion='circle'):
-        self.controller = LOSGuidance(R2, u_d, switch_criterion)
-        self.rate = rate
+    def __init__(self,
+                 R2=20**2,
+                 u_d=2.0,
+                 de=50.0,
+                 Ki=0.0,
+                 dt=0.2,
+                 max_integral_correction=np.pi*20.0/180.0,
+                 switch_criterion='circle'):
+
+        self.controller = LOSGuidance(R2,
+                                      u_d,
+                                      de,
+                                      Ki,
+                                      dt,
+                                      max_integral_correction,
+                                      switch_criterion)
+        self.rate = dt
         self.wp   = self.controller.wp
         self.nwp  = 0
         self.cwp  = 0
@@ -136,10 +150,23 @@ class LOSGuidanceROS(object):
 
 class LOSGuidance(Controller):
     """This class implements the classic LOS guidance scheme."""
-    def __init__(self, R2=20**2, u_d = 3.0, switch_criterion='circle'):
+    def __init__(self,
+                 R2=20**2,
+                 u_d=2.0,
+                 de=50.0,
+                 Ki=0.0,
+                 dt=0.2,
+                 max_integral_correction=np.pi*20.0/180.0,
+                 switch_criterion='circle'):
         self.R2 = R2 # Radii of acceptance (squared)
         self.R  = np.sqrt(R2)
-        self.de = 50 # Lookahead distance
+        self.de = de # Lookahead distance
+
+        self.dt = dt
+        self.max_integral_correction = np.abs(np.tan(max_integral_correction) * de)
+        self.Ki = Ki
+
+        self.e_integral = 0.0
 
         self.cWP = 0 # Current waypoint
         self.wp = None
@@ -186,10 +213,13 @@ class LOSGuidance(Controller):
                     print "Waypoint %d: (%.2f, %.2f) reached!" % (self.cWP,
                                                                   self.wp[self.cWP][0],
                                                                   self.wp[self.cWP][1])
-                    # print "Next waypoint: (%.2f, %.2f)" % (self.wp[self.cWP+1][0],
-                    #                                        self.wp[self.cWP+1][1])
-                    self.Xp = np.arctan2(self.wp[self.cWP + 1][1] - self.wp[self.cWP][1],
-                                         self.wp[self.cWP + 1][0] - self.wp[self.cWP][0])
+                    new_course = np.arctan2(self.wp[self.cWP + 1][1] - self.wp[self.cWP][1],
+                                            self.wp[self.cWP + 1][0] - self.wp[self.cWP][0])
+
+                    if (np.abs(new_course - self.Xp) > np.pi/4.0):
+                        self.e_integral = 0.0
+
+                    self.Xp = new_course
                     self.cWP += 1
                     switched = True
                 else:
@@ -206,10 +236,15 @@ class LOSGuidance(Controller):
         xk = self.wp[self.cWP][0]
         yk = self.wp[self.cWP][1]
 
-        # Eq. (10.10), [Fossen, 2011]
+        # Cross-track error Eq. (10.10), [Fossen, 2011]
         e  = -(x - xk)*np.sin(self.Xp) + (y - yk)*np.cos(self.Xp)
+        self.e_integral += e*self.dt
 
-        Xr = np.arctan2( -e, self.de)
+        if self.e_integral*self.Ki > self.max_integral_correction:
+            self.e_integral -= e*self.dt
+
+        Xr = np.arctan2( -(e + self.Ki*self.e_integral), self.de)
+
         psi_d = self.Xp + Xr
 
         return self.u_d, psi_d, switched
@@ -218,9 +253,20 @@ if __name__ == "__main__":
     rospy.init_node("LOS_Guidance_controller")
 
     waypoints = rospy.get_param("~waypoints")
-    u_d = rospy.get_param("~u_d")
+    u_d = rospy.get_param("~u_d", 2.0)
+    R2 = rospy.get_param("~acceptance_radius", 20)**2
+    dt = rospy.get_param("~update_rate", .2)
+    de = rospy.get_param("~lookahead_distance", 50.0)
+    Ki = rospy.get_param("~integral_gain", 0.05)
+    max_integral_correction = rospy.get_param("~max_integral_correction", np.pi*20/180)
 
-    guide = LOSGuidanceROS(.2, u_d=u_d)
+    guide = LOSGuidanceROS(R2,
+                           u_d,
+                           de,
+                           Ki,
+                           dt,
+                           max_integral_correction,
+                           switch_criterion='circle')
 
     wps = np.array(waypoints)
     guide.set_waypoints(wps)

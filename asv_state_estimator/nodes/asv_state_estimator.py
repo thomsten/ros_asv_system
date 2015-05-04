@@ -16,9 +16,12 @@ from tf.transformations import quaternion_from_euler as euler2quat
 
 DEG2RAD = np.pi / 180.0
 
+def quat2yaw(q):
+    return np.arctan2(2*(q[0]*q[1] + q[2]*q[3]), 1 - 2*(q[1]**2 + q[2]**2))
+
 def normalize_angle(angle):
     """Ensure angle within [-PI, PI)"""
-    while angle < np.pi:
+    while angle > np.pi:
         angle -= 2.0*np.pi
     while angle <= -np.pi:
         angle += 2.0*np.pi
@@ -102,6 +105,12 @@ class StateEstimator(object):
         else:
             return np.array([ned[1], ned[0], -ned[2]])
 
+    def geod2enu(self, lat, lon, h):
+        ecef = self.geod2ecef(lat, lon, h)
+
+        ned = self.ecef2ned(ecef)
+        enu = self.ned2enu(ned)
+        return enu
 
     def fixCallback(self, msg):
         lat = msg.latitude * DEG2RAD
@@ -114,10 +123,7 @@ class StateEstimator(object):
         else:
             self.gps_fix = True
 
-        ecef = self.geod2ecef(lat, lon, h)
-
-        ned = self.ecef2ned(ecef)
-        enu = self.ned2enu(ned)
+        enu = geod2enu(self, lat, lon, h)
 
         self.gps_pos = enu[0:2]
 
@@ -140,7 +146,7 @@ class StateEstimator(object):
 
         velocity = np.sqrt(self.odom.twist.twist.linear.x**2 + self.odom.twist.twist.linear.y**2)
         if (self.gps_fix and \
-            velocity > 0.1 and \
+            velocity > 0.5 and \
             self.odom.twist.twist.angular.z < 0.5):
             self.yaw_correction = normalize_angle(self.gps_course - quat2yaw(self.imu_ang))
 
