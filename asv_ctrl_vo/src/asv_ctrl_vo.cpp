@@ -24,11 +24,12 @@ VelocityObstacle::VelocityObstacle() : EDGE_SAMPLES_(10),
                                        MAX_VEL_(4.0),
                                        MAX_ANG_(2.0944),
                                        MIN_DIST_(100.0),
-                                       D_CPA_MIN_(100.0),
-                                       T_CPA_MAX_(100.0)
+                                       D_CPA_MIN_(50.0),
+                                       T_CPA_MAX_(120.0)
 {
   asv_pose_ = Eigen::Vector3d(0.0, 0.0, 0.0);
   asv_twist_ = Eigen::Vector3d(0.0, 0.0, 0.0);
+  //  state_list_ = NO_SITUATION;
 }
 
 VelocityObstacle::~VelocityObstacle()
@@ -68,8 +69,15 @@ void VelocityObstacle::update()
 
 void VelocityObstacle::updateVelocityGrid()
 {
+
+  if (state_list_.size() < obstacles_->size()){
+    state_list_.resize(obstacles_->size(), NO_SITUATION);
+  }
+
+  double vo_buf[VEL_SAMPLES_*ANG_SAMPLES_];
+
   const double RAD2DEG = 180.0/M_PI;
-  const double OBJVAL_SCALE = 11.0;
+  const double OBJVAL_SCALE = 15.0;
 
   double u0 = 0, u = 0;
   double theta0 = -MAX_ANG_ + asv_pose_[2], t = 0;
@@ -87,27 +95,46 @@ void VelocityObstacle::updateVelocityGrid()
   double uerr, terr;
 
   // Objective function value. By minimizing this, an "optimal" velocity may be selected.
-  double objval = 0.0;
+  double objval = 0.0, max_objval = -1;
 
-  if (obstacles_->empty())
-    {
-      for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
-        for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
-          /// @todo
-          u = u0 + u_it*du;
-          t = theta0 + t_it*dtheta;
-          normalize_angle_diff(t, va_ref[1]);
+  Eigen::Matrix2d Q;
 
-          uerr = fabs(u - va_ref[0]);
-          terr = fabs(t - va_ref[1]);
+  Q << 1.0, 0,
+    0, 1.;
+  Eigen::Vector2d vref = Eigen::Vector2d(u_d_*cos(psi_d_), u_d_*sin(psi_d_));
+  Eigen::Vector2d vi;
+  for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
+    for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
+      u = u0 + u_it*du;
+      t = theta0 + t_it*dtheta;
+      // normalize_angle_diff(t, va_ref[1]);
 
-          objval = (0.05*uerr*uerr + 0.95*terr*terr) / OBJVAL_SCALE;
+      vi[0] = u*cos(t) - vref[0];
+      vi[1] = u*sin(t) - vref[1];
 
-          setVelocity(u_it, t_it, objval);
-        }
+      objval = vi.transpose()*Q*vi;
+      vo_buf[u_it*ANG_SAMPLES_ + t_it] = objval;
+
+      if (objval > max_objval) {
+        max_objval = objval;
       }
     }
+  }
 
+  // Normalize
+  for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
+    for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
+      vo_buf[u_it*ANG_SAMPLES_ + t_it] *= 0.5 / max_objval;
+      if (vo_buf[u_it*ANG_SAMPLES_ + t_it] > 1.0)
+        {
+          ROS_INFO("Objective value: %.2f", objval);
+          objval = 1.0;
+        }
+      setVelocity(u_it, t_it, vo_buf[u_it*ANG_SAMPLES_ + t_it]);
+    }
+  }
+
+  int i = 0;
   for (it = obstacles_->begin(); it != obstacles_->end(); ++it) {
     Eigen::Vector3d obstacle_pose = Eigen::Vector3d(it->x, it->y, it->psi);
     Eigen::Vector3d obstacle_twist = Eigen::Vector3d(it->u, it->v, it->r);
@@ -120,6 +147,45 @@ void VelocityObstacle::updateVelocityGrid()
 
     bool collision_situation = inCollisionSituation(asv_pose_, obstacle_pose, va, vb);
     colregs_t colregs_situation = inColregsSituation(asv_pose_, obstacle_pose);
+
+    bool apply_colregs = (colregs_situation == HEAD_ON ||
+                          colregs_situation == CROSSING_RIGHT ||
+                          colregs_situation == OVERTAKING);
+
+    // print_situation(colregs_situation);
+
+    switch (state_list_[i])
+      {
+      case NO_SITUATION:
+        state_list_[i] = colregs_situation;
+        break;
+      case HEAD_ON:
+        // Head on is resolved when the colregs_situation changes (relative
+        // bearing larger than +/- 112.5 deg)
+        state_list_[i] = colregs_situation;
+        break;
+      case CROSSING_LEFT:
+        //
+        state_list_[i] = colregs_situation;
+        break;
+      case CROSSING_RIGHT:
+        state_list_[i] = colregs_situation;
+        break;
+      case OVERTAKING:
+        // The overtaking situation is maintained until the relative bearing is
+        // within +/- 15 deg
+        if (colregs_situation != HEAD_ON) {
+          collision_situation = true;
+          apply_colregs = true;
+        }
+        else {
+          state_list_[i] = colregs_situation;
+        }
+
+        if (state_list_[i] != OVERTAKING)
+          ROS_INFO("In OVERTAKING state, switching to %d, Ship %d", state_list_[i], i);
+        break;
+      }
 
     // ROS_INFO("colsit: %d, coltype: %d", (int)collision_situation,(int) colregs_situation);
     // ROS_INFO("va: (%.2f, %.2f), %.2f, vb: (%.2f, %.2f), %.2f %.2f", va[0], va[1], asv_pose_[2]*RAD2DEG, vb[0], vb[1], va_ref[1]*RAD2DEG, obstacle_pose[2]*RAD2DEG);
@@ -141,28 +207,19 @@ void VelocityObstacle::updateVelocityGrid()
 
     for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
       for (int t_it=0; t_it<ANG_SAMPLES_; ++t_it) {
-        /// @todo
+        // /// @todo
         u = u0 + u_it*du;
         t = theta0 + t_it*dtheta;
         normalize_angle_diff(t, va_ref[1]);
 
-        uerr = fabs(u - va_ref[0]);
-        terr = fabs(t - va_ref[1]);
-
-        objval = (0.05*uerr*uerr + 0.95*terr*terr) / OBJVAL_SCALE;
-        if (objval > 1.0)
-          {
-            ROS_INFO("Objective value: %.2f, u,t = (%.2f, %.2f), tref: %.2f", objval, u, t*RAD2DEG, va_ref[1]*RAD2DEG);
-            objval = 1.0;
-          }
+        objval = vo_buf[u_it*ANG_SAMPLES_ + t_it];
 
         if (collision_situation && inVelocityObstacle(u, t, lb, rb, vb))
           {
             setVelocity(u_it, t_it, VELOCITY_NOT_OK);
           }
         else if ((collision_situation &&
-                  (colregs_situation == HEAD_ON ||
-                   colregs_situation == CROSSING_RIGHT) &&
+                  apply_colregs &&
                   violatesColregs(u, t, obstacle_pose, vb)))
           {
             setVelocity(u_it, t_it, VELOCITY_VIOLATES_COLREGS + objval/2.0);
@@ -173,16 +230,18 @@ void VelocityObstacle::updateVelocityGrid()
             /// EDIT: Solved in setVelocity by checking if value already present in
             /// the VO-grid is larger than the value to be added. Should this be
             /// Tested here instead?
-            setVelocity(u_it, t_it, objval);
+            ///
+            /// ALREADY SET
+            // setVelocity(u_it, t_it, objval);
           }
       }
     }
+    ++i;
   }
 }
 
 void VelocityObstacle::checkStaticObstacles()
 {
-
   for (int i=0;i < local_map_.data.size(); ++i)
     local_map_.data[i] = 0;
 
@@ -431,13 +490,14 @@ bool VelocityObstacle::inCollisionSituation(const Eigen::Vector3d &pose_a,
                                             const Eigen::Vector2d &vb)
 {
   // Vector from obstacle position to asv position
-  Eigen::Vector2d pab = -pose_a.head(2) + pose_b.head(2);
+  Eigen::Vector2d pab = pose_a.head(2) - pose_b.head(2);
 
-  double vab_norm = (vb-va).norm();
+
+  double vab_norm = (va-vb).norm();
   double t_cpa = 0.0;
   if (vab_norm > 0.0001)
     {
-      t_cpa = -pab.dot(vb-va)/(vab_norm*vab_norm);
+      t_cpa = -pab.dot(va-vb)/(vab_norm*vab_norm);
     }
 
   double d_cpa = ((pose_a.head(2) + va*t_cpa) -
@@ -531,4 +591,27 @@ void normalize_angle_diff(double &angle, const double &angle_ref)
     {
       angle -= 2*M_PI;
     }
+}
+
+void print_situation(const colregs_t &sit) {
+  switch(sit){
+  case NO_SITUATION:
+    ROS_INFO("In situation: NO_SITUATION");
+    break;
+  case HEAD_ON:
+    ROS_INFO("In situation: HEAD_ON");
+    break;
+  case CROSSING_LEFT:
+    ROS_INFO("In situation: CROSSING_LEFT");
+    break;
+  case CROSSING_RIGHT:
+    ROS_INFO("In situation: CROSSING_RIGHT");
+    break;
+  case OVERTAKING:
+    ROS_INFO("In situation: OVERTAKING");
+    break;
+  default:
+    ROS_INFO("wtf: %d, %d", sit, OVERTAKING);
+    break;
+  }
 }

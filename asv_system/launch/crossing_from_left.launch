@@ -10,7 +10,7 @@
     <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship1.urdf" />
     <arg name="namespace" value="obstacles/ship1" />
     <arg name="shipname" value="ship1" />
-    <arg name="initial_state" value="[-250.0, 250.0, 0.0, 1.,0.,0.]" />
+    <arg name="initial_state" value="[-150.0, 150.0, 0.0, 1.,0.,0.]" />
   </include>
 
   <include file="$(find asv_obstacle_tracker)/launch/default.launch"/>
@@ -23,6 +23,6 @@
   <node pkg="rosbag"
         type="record"
         name="rosbag_record"
-        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/crossing_from_left.bag /asv/state /obstacles/ship1/state"
+        args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/crossing_from_left.bag /asv/state /obstacles/ship1/state"
         />
 </launch>

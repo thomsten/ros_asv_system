@@ -11,7 +11,7 @@
     <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship1.urdf" />
     <arg name="namespace" value="obstacles/ship1" />
     <arg name="shipname" value="ship1" />
-    <arg name="initial_state" value="[-25, 25.0, 1.57, 2.,0.,0.]" />
+    <arg name="initial_state" value="[35, 0.0, 1.57, 4.0,0.,0.]" />
     <arg name="u_d" value="2.0"/>
   </include>
 
@@ -26,6 +26,7 @@
   <node pkg="rosbag"
         type="record"
         name="rosbag_record"
-        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/in_between_rules.bag /asv/state /obstacles/ship1/state"
+        args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/in_between_rules.bag /asv/state /obstacles/ship1/state"
         />
+
 </launch>

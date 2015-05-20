@@ -60,7 +60,7 @@ class LOSGuidanceROS(object):
                 mk.ns = "waypoints"
                 mk.id = wp
                 mk.type = Marker.CYLINDER
-                D = np.sqrt(self.controller.R2)
+                D = np.sqrt(self.controller.R2) * 2
                 mk.scale.x = D
                 mk.scale.y = D
                 mk.scale.z = 2. # height [m]
@@ -257,7 +257,7 @@ if __name__ == "__main__":
     R2 = rospy.get_param("~acceptance_radius", 20)**2
     dt = rospy.get_param("~update_rate", .2)
     de = rospy.get_param("~lookahead_distance", 50.0)
-    Ki = rospy.get_param("~integral_gain", 0.05)
+    Ki = rospy.get_param("~integral_gain", 0.0)
     max_integral_correction = rospy.get_param("~max_integral_correction", np.pi*20/180)
 
     guide = LOSGuidanceROS(R2,
