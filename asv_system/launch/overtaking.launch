@@ -1,17 +1,18 @@
 <launch>
   <include file="$(find asv_simulator)/launch/default.launch">
-    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/south_to_north.yaml" />
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/asv_overtaking.yaml" />
+    <arg name="initial_state" value="[-150.0, 150.0, 0, 1.,0.,0.]" />
     <arg name="u_d" value="3.0" />
   </include>
 
   <!-- Obstacle ship -->
   <include file="$(find asv_simulator)/launch/default.launch">
-    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/slow_south_to_north.yaml" />
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/ship1_overtaking.yaml" />
     <arg name="use_vo" value="False" />
     <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship1.urdf" />
     <arg name="namespace" value="obstacles/ship1" />
     <arg name="shipname" value="ship1" />
-    <arg name="initial_state" value="[0.0, 100.0, 1.57, 1.,0.,0.]" />
+    <arg name="initial_state" value="[-100.0, 150.0, 0, 1.,0.,0.]" />
     <arg name="u_d" value="1.0" />
   </include>
 

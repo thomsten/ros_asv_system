@@ -1,6 +1,7 @@
 <launch>
   <include file="$(find asv_simulator)/launch/default.launch">
     <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/asv_head_on_and_crossing.yaml" />
+    <arg name="initial_state" value="[0.0, 0.0, 1.56, 4.,0.,0.]" />
     <arg name="u_d" value="4.0" />
   </include>
 
@@ -27,6 +28,7 @@
   </include>
 
 
+  <!-- <param name="wave_filter_gain" value="60." /> -->
   <include file="$(find asv_obstacle_tracker)/launch/default.launch"/>
 
 
@@ -36,10 +38,17 @@
         args="-d $(find asv_simulator)/config/rviz/three_vessels.rviz" />
 
 
-  <node pkg="rosbag"
-        type="record"
-        name="rosbag_record"
-        args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/head_on_and_crossing.bag /asv/state /obstacles/ship1/state /obstacles/ship2/state"
-        />
+  <!-- <node pkg="rosbag" -->
+  <!--       type="record" -->
+  <!--       name="rosbag_record" -->
+  <!--       args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/head_on_and_crossing_waves.bag /asv/state /asv/wave_noise /obstacle_states /obstacles/ship1/state /obstacles/ship1/wave_noise /obstacles/ship2/state /obstacles/ship2/wave_noise" -->
+  <!--       /> -->
+
+
+  <!-- <node pkg="rosbag" -->
+  <!--       type="record" -->
+  <!--       name="rosbag_record" -->
+  <!--       args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/head_on_and_crossing.bag /asv/state /obstacle_states /obstacles/ship1/state /obstacles/ship2/state" -->
+  <!--       /> -->
 
 </launch>

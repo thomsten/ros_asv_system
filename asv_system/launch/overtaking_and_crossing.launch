@@ -1,12 +1,12 @@
 <launch>
   <include file="$(find asv_simulator)/launch/default.launch">
-    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/south_to_north.yaml" />
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/asv_overtaking_and_crossing.yaml" />
     <arg name="u_d" value="5.0" />
   </include>
 
   <!-- Obstacle ship -->
   <include file="$(find asv_simulator)/launch/default.launch">
-    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/east_to_west.yaml" />
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/ship1_overtaking_and_crossing.yaml" />
     <arg name="use_vo" value="False" />
     <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship1.urdf" />
     <arg name="namespace" value="obstacles/ship1" />
@@ -17,7 +17,7 @@
 
   <!-- Obstacle ship -->
   <include file="$(find asv_simulator)/launch/default.launch">
-    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/slow_south_to_north.yaml" />
+    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/ship2_overtaking_and_crossing.yaml" />
     <arg name="use_vo" value="False" />
     <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship2.urdf" />
     <arg name="namespace" value="obstacles/ship2" />
@@ -25,7 +25,6 @@
     <arg name="initial_state" value="[0.0, 100.0, 1.57, 1.,0.,0.]" />
     <arg name="u_d" value="1.0" />
   </include>
-
 
   <include file="$(find asv_obstacle_tracker)/launch/default.launch"/>
 
@@ -36,10 +35,16 @@
         args="-d $(find asv_simulator)/config/rviz/three_vessels.rviz" />
 
 
+  <!-- <node pkg="rosbag" -->
+  <!--       type="record" -->
+  <!--       name="rosbag_record" -->
+  <!--       args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/overtaking_and_crossing.bag /asv/state /obstacle_states /obstacles/ship1/state /obstacles/ship2/state" -->
+  <!--       /> -->
+
   <node pkg="rosbag"
         type="record"
         name="rosbag_record"
-        args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/overtaking_and_crossing.bag /asv/state /obstacles/ship1/state /obstacles/ship2/state"
+        args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/overtaking_and_crossing_waves.bag /asv/state /asv/wave_noise /obstacle_states /obstacles/ship1/state /obstacles/ship1/wave_noise /obstacles/ship2/state /obstacles/ship2/wave_noise"
         />
 
 </launch>

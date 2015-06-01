@@ -1,4 +1,15 @@
 #!/usr/bin/env python
+"""(Integral) Line of Sight implementation for ROS
+
+This implementation is based on [1].
+
+TODO's:
+- The LOS-controller should use the initial position as the first 'waypoint'
+
+[1]: Handbook of Marine Craft Hydrodynamics and Motion Control. T.I. Fossen, 2011.
+
+"""
+
 import numpy as np
 import rospy
 import geometry_msgs.msg
@@ -7,7 +18,7 @@ from visualization_msgs.msg import Marker
 from utils import Controller
 
 class LOSGuidanceROS(object):
-    """A ROS wrapper for LOSGuidance()."""
+    """A ROS wrapper for LOSGuidance()"""
     def __init__(self,
                  R2=20**2,
                  u_d=2.0,
@@ -256,7 +267,7 @@ if __name__ == "__main__":
     u_d = rospy.get_param("~u_d", 2.0)
     R2 = rospy.get_param("~acceptance_radius", 20)**2
     dt = rospy.get_param("~update_rate", .2)
-    de = rospy.get_param("~lookahead_distance", 50.0)
+    de = rospy.get_param("~lookahead_distance", 40.0)
     Ki = rospy.get_param("~integral_gain", 0.0)
     max_integral_correction = rospy.get_param("~max_integral_correction", np.pi*20/180)
 
