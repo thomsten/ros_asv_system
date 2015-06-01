@@ -14,14 +14,12 @@ static const double VELOCITY_NOT_OK = 1.0;
 static const int OCCUPIED_TRESH = 40;
 
 typedef enum {
-  NO_SITUATION=0,
-  HEAD_ON,
-  CROSSING_LEFT,
-  CROSSING_RIGHT,
-  OVERTAKING
+  NO_SITUATION=0, // 0
+  HEAD_ON,        // 1
+  CROSSING_LEFT,  // 2
+  CROSSING_RIGHT, // 3
+  OVERTAKING      // 4
 } colregs_t;
-
-void print_situation(const colregs_t &sit);
 
 class VelocityObstacle
 {
@@ -91,8 +89,8 @@ class VelocityObstacle
                           const Eigen::Vector3d &pose_b,
                           const Eigen::Vector2d &va,
                           const Eigen::Vector2d &vb);
-  colregs_t inColregsSituation(const Eigen::Vector3d &pose_a,
-                               const Eigen::Vector3d &pose_b);
+  colregs_t inColregsSituation(const double &bearing,
+                               const double &angle_diff);
 
   std::vector<colregs_t> state_list_;
 

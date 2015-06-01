@@ -10,10 +10,13 @@
 #include <cmath>
 
 #include "asv_ctrl_vo/asv_ctrl_vo.h"
+static const double DEG2RAD = M_PI/180.0f;
+static const double RAD2DEG = 180.0f/M_PI;
 
-
+// Utils
+void print_situation(const colregs_t &sit);
+void get_state_str(std::string &str, const colregs_t &state);
 void rot2d(const Eigen::Vector2d &v, double yaw, Eigen::Vector2d &result);
-void normalize_angle(double &angle);
 void normalize_angle(double &alpha);
 void normalize_angle_diff(double &angle, const double &angle_ref);
 
@@ -25,11 +28,10 @@ VelocityObstacle::VelocityObstacle() : EDGE_SAMPLES_(10),
                                        MAX_ANG_(2.0944),
                                        MIN_DIST_(100.0),
                                        D_CPA_MIN_(50.0),
-                                       T_CPA_MAX_(120.0)
+                                       T_CPA_MAX_(60.0)
 {
   asv_pose_ = Eigen::Vector3d(0.0, 0.0, 0.0);
   asv_twist_ = Eigen::Vector3d(0.0, 0.0, 0.0);
-  //  state_list_ = NO_SITUATION;
 }
 
 VelocityObstacle::~VelocityObstacle()
@@ -44,6 +46,7 @@ void VelocityObstacle::initialize(std::vector<asv_msgs::State> *obstacles,
 
   vo_grid_.resize(ANG_SAMPLES_*VEL_SAMPLES_);
 
+  /// @todo Remove local_map_! Only used for debugging purposes...
   local_map_.header.frame_id ="map";
   local_map_.info.resolution = 0.78;
   local_map_.info.width  = 1362;
@@ -76,9 +79,6 @@ void VelocityObstacle::updateVelocityGrid()
 
   double vo_buf[VEL_SAMPLES_*ANG_SAMPLES_];
 
-  const double RAD2DEG = 180.0/M_PI;
-  const double OBJVAL_SCALE = 15.0;
-
   double u0 = 0, u = 0;
   double theta0 = -MAX_ANG_ + asv_pose_[2], t = 0;
 
@@ -92,15 +92,15 @@ void VelocityObstacle::updateVelocityGrid()
 
   std::vector<asv_msgs::State>::iterator it;
 
-  double uerr, terr;
 
+  /// @todo Move this to own function, e.g., this->resetVelocityField(...);
   // Objective function value. By minimizing this, an "optimal" velocity may be selected.
   double objval = 0.0, max_objval = -1;
 
+  /// @todo Get weighing parameters from rosparam
   Eigen::Matrix2d Q;
-
   Q << 1.0, 0,
-    0, 1.;
+    0, 1.0;
   Eigen::Vector2d vref = Eigen::Vector2d(u_d_*cos(psi_d_), u_d_*sin(psi_d_));
   Eigen::Vector2d vi;
   for (int u_it=0; u_it<VEL_SAMPLES_; ++u_it) {
@@ -144,33 +144,69 @@ void VelocityObstacle::updateVelocityGrid()
     Eigen::Vector2d vb;
     rot2d(obstacle_twist.head(2), obstacle_pose[2], vb);
 
+    Eigen::Vector2d pab = -asv_pose_.head(2) + obstacle_pose.head(2);
 
-    bool collision_situation = inCollisionSituation(asv_pose_, obstacle_pose, va, vb);
-    colregs_t colregs_situation = inColregsSituation(asv_pose_, obstacle_pose);
+    // Relative bearing (Loe, 2008)
+    double bearing = atan2(-pab[1], -pab[0]) - obstacle_pose[2];
+
+    // Normalize the angle [0, 2*PI)
+    while (bearing <= 0)
+      bearing += 2*M_PI;
+    while(bearing > 2*M_PI)
+      bearing -= 2*M_PI;
+
+    double angle_diff = asv_pose_[2] - obstacle_pose[2];
+    normalize_angle_diff(angle_diff, asv_pose_[2]);
+
+    bool collision_situation    = inCollisionSituation(asv_pose_, obstacle_pose, va, vb);
+    colregs_t colregs_situation = inColregsSituation(bearing, angle_diff);
 
     bool apply_colregs = (colregs_situation == HEAD_ON ||
                           colregs_situation == CROSSING_RIGHT ||
-                          colregs_situation == OVERTAKING);
+                          colregs_situation == OVERTAKING) && collision_situation;
 
-    // print_situation(colregs_situation);
+
+
+    /// @todo Move this to own function, e.g., this->handleEvent(...);
+    colregs_t prev_state = state_list_[i];
 
     switch (state_list_[i])
       {
       case NO_SITUATION:
-        state_list_[i] = colregs_situation;
+        if (apply_colregs)
+          state_list_[i] = colregs_situation;
+        else
+          state_list_[i] = NO_SITUATION;
         break;
       case HEAD_ON:
         // Head on is resolved when the colregs_situation changes (relative
         // bearing larger than +/- 112.5 deg)
-        state_list_[i] = colregs_situation;
+        if (apply_colregs)
+          state_list_[i] = colregs_situation;
+        else
+          state_list_[i] = NO_SITUATION;
         break;
       case CROSSING_LEFT:
         //
-        state_list_[i] = colregs_situation;
+        if (apply_colregs)
+          state_list_[i] = colregs_situation;
+        else
+          state_list_[i] = NO_SITUATION;
         break;
       case CROSSING_RIGHT:
-        state_list_[i] = colregs_situation;
-        break;
+        // Pass behind the other vessel
+        // 112.5*DEG2RAD <= alpha < 247.5*DEG2RAD
+        if ( !(112.15*DEG2RAD <= bearing  && bearing < 247.5*DEG2RAD) ) {
+          collision_situation = true;
+          apply_colregs = true;
+        }
+        else {
+          if (apply_colregs) {
+            state_list_[i] = colregs_situation;
+          }
+          else
+            state_list_[i] = NO_SITUATION;
+        }
       case OVERTAKING:
         // The overtaking situation is maintained until the relative bearing is
         // within +/- 15 deg
@@ -179,19 +215,22 @@ void VelocityObstacle::updateVelocityGrid()
           apply_colregs = true;
         }
         else {
-          state_list_[i] = colregs_situation;
+          if (apply_colregs)
+            state_list_[i] = colregs_situation;
+          else
+            state_list_[i] = NO_SITUATION;
         }
-
-        if (state_list_[i] != OVERTAKING)
-          ROS_INFO("In OVERTAKING state, switching to %d, Ship %d", state_list_[i], i);
         break;
       }
 
-    // ROS_INFO("colsit: %d, coltype: %d", (int)collision_situation,(int) colregs_situation);
-    // ROS_INFO("va: (%.2f, %.2f), %.2f, vb: (%.2f, %.2f), %.2f %.2f", va[0], va[1], asv_pose_[2]*RAD2DEG, vb[0], vb[1], va_ref[1]*RAD2DEG, obstacle_pose[2]*RAD2DEG);
 
-    Eigen::Vector2d pab = -asv_pose_.head(2) + obstacle_pose.head(2);
+    if (state_list_[i] != prev_state) {
+      std::string pstate, nstate;
+      get_state_str(pstate, prev_state);
+      get_state_str(nstate, state_list_[i]);
 
+      ROS_INFO("Ship %d: In %s state, switching to %s", i, pstate.c_str(), nstate.c_str());
+    }
 
     // Collsion situation detected
     // Find velocity obstacle region
@@ -218,19 +257,13 @@ void VelocityObstacle::updateVelocityGrid()
           {
             setVelocity(u_it, t_it, VELOCITY_NOT_OK);
           }
-        else if ((collision_situation &&
-                  apply_colregs &&
+        else if ((apply_colregs &&
                   violatesColregs(u, t, obstacle_pose, vb)))
           {
             setVelocity(u_it, t_it, VELOCITY_VIOLATES_COLREGS + objval/2.0);
           }
         else
           {
-            /// @todo This line will cause a bug if multiple obstacles are present.
-            /// EDIT: Solved in setVelocity by checking if value already present in
-            /// the VO-grid is larger than the value to be added. Should this be
-            /// Tested here instead?
-            ///
             /// ALREADY SET
             // setVelocity(u_it, t_it, objval);
           }
@@ -247,31 +280,30 @@ void VelocityObstacle::checkStaticObstacles()
 
   if (map_ == NULL || map_->info.resolution <= 0.0)
     return;
-  const double RAD2DEG = 180.0/M_PI;
 
-  double u = MAX_VEL_, u_min = 0.0;
-  double theta = -MAX_ANG_ + asv_pose_[2], theta_max = MAX_ANG_ + asv_pose_[2];
+  double px0  = asv_pose_[0];
+  double py0  = asv_pose_[1];
+  double theta0 = asv_pose_[2];
+
+  double u     =  MAX_VEL_;
+  double theta = -MAX_ANG_ + theta0, theta_max = MAX_ANG_ + theta0;
 
   double du     = -MAX_VEL_/VEL_SAMPLES_;
   double dtheta = 2.0*MAX_ANG_/ANG_SAMPLES_;
+  double dt     = map_->info.resolution / MAX_VEL_; // Proportional to the grid resolution
+
+  double px, py, dx, dy, t;
+
+  bool velocity_ok;
 
   // The time limit for static obstacles.
   // Assuming u_d = 3.0 m/s, tlim = 40.0 s => safety_region 120 m (head on)
   double t_max = 40.0;
 
-  double dt = map_->info.resolution / MAX_VEL_; /// @todo This size is proportional to the grid size and velocity
-
-  double t = dt;
-
-  double px, py, dx, dy;
-  double px0 = asv_pose_[0], py0 = asv_pose_[1];
-
-  bool velocity_ok;
   /// Note that we loop through the velocity in decreasing order because if the
   /// largest velocity (-path) is collision free, so will the smaller ones be as
   /// well.
   for (int theta_it = 0; theta_it < ANG_SAMPLES_; ++theta_it) {
-
     // Reset u
     u = MAX_VEL_;
     dx = cos(theta);
@@ -284,9 +316,10 @@ void VelocityObstacle::checkStaticObstacles()
         px = px0 + u*dx*t;
         py = py0 + u*dy*t;
 
-        int px_i = (int) round((px - local_map_.info.origin.position.x)/local_map_.info.resolution);
-        int py_i = (int) round((py - local_map_.info.origin.position.y)/local_map_.info.resolution);
-        local_map_.data[px_i + local_map_.info.width*py_i] = 100;
+        // THIS MAY CAUSE SEGFAULT :S (Only used for visualization purposes)
+        // int px_i = (int) round((px - local_map_.info.origin.position.x)/local_map_.info.resolution);
+        // int py_i = (int) round((py - local_map_.info.origin.position.y)/local_map_.info.resolution);
+        // local_map_.data[px_i + local_map_.info.width*py_i] = 100;
 
         if (inObstacle(px, py))
           {
@@ -357,7 +390,8 @@ bool VelocityObstacle::violatesColregs(const double &u,
   Eigen::Vector2d vdiff = Eigen::Vector2d(u*cos(theta), u*sin(theta)) - vb;
 
   // COLREGs applicaple if the following relation holds (Kuwata et. al., 2014)
-  return (pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0.0);
+  return ((pdiff[0]*vdiff[1] - pdiff[1]*vdiff[0] < 0.0) &&
+          (pdiff.dot(vdiff) < 0));
 }
 
 void VelocityObstacle::clearVelocityGrid()
@@ -368,11 +402,18 @@ void VelocityObstacle::clearVelocityGrid()
 
 void VelocityObstacle::setVelocity(const int &ui, const int &ti, const double &val)
 {
+  int size = (ui*ANG_SAMPLES_ + ti);
+  if ( ! (size < vo_grid_.size()) ) {
+    ROS_ERROR("Tried to set %d,%d, size: %d max_size: %d", ui, ti, size, (int)vo_grid_.size());
+    return;
+  }
+
   // Already sampled with higher priority (e.g. for another obstacle)
+  // The value 1337 is used for marking the current best (u, psi) pair
   if (vo_grid_[ui*ANG_SAMPLES_ + ti] >= val && val != 1337.0)
     return;
 
-
+  // Set colors
   if (marker_ != NULL)
     {
       // Convert from scalar value to RGB heatmap: https://www.particleincell.com/2014/colormap/
@@ -507,21 +548,9 @@ bool VelocityObstacle::inCollisionSituation(const Eigen::Vector3d &pose_a,
           (t_cpa >= 0.0 && t_cpa < T_CPA_MAX_));
 }
 
-colregs_t VelocityObstacle::inColregsSituation(const Eigen::Vector3d &pose_a,
-                                               const Eigen::Vector3d &pose_b)
+colregs_t VelocityObstacle::inColregsSituation(const double &alpha,
+                                               const double &angle_diff)
 {
-  Eigen::Vector2d pdiff = pose_a.head(2) - pose_b.head(2);
-
-  // Relative bearing (Loe, 2008)
-  double alpha = atan2(pdiff[1], pdiff[0]) - pose_b[2];
-
-  // Normalize the angle [0, 2*PI)
-  while (alpha <= 0)
-    alpha += 2*M_PI;
-  while(alpha > 2*M_PI)
-    alpha -= 2*M_PI;
-
-  const double DEG2RAD = M_PI/180.0f;
 
   // The limits are found in Loe, 2008.
   if ((0.0 <= alpha && alpha < 15.0*DEG2RAD) ||
@@ -542,8 +571,11 @@ colregs_t VelocityObstacle::inColregsSituation(const Eigen::Vector3d &pose_a,
   else
     {
       // The remaining: Overtaking
-      // 112.5*DEG2RAD <= alpha or alpha < 247.5*DEG2RAD
-      return OVERTAKING;
+      // 112.5*DEG2RAD <= alpha < 247.5*DEG2RAD
+      if (fabs(angle_diff) <= 45*DEG2RAD)
+        return OVERTAKING;
+      else
+        return NO_SITUATION;
     }
 }
 
@@ -591,6 +623,28 @@ void normalize_angle_diff(double &angle, const double &angle_ref)
     {
       angle -= 2*M_PI;
     }
+}
+
+void get_state_str(std::string &str, const colregs_t &state) {
+  switch(state){
+  case NO_SITUATION:
+    str = std::string("NO_SITUATION");
+    break;
+  case HEAD_ON:
+    str = std::string("HEAD_ON");
+    break;
+  case CROSSING_LEFT:
+    str = std::string("CROSSING_LEFT");
+    break;
+  case CROSSING_RIGHT:
+    str = std::string("CROSSING_RIGHT");
+    break;
+  case OVERTAKING:
+    str = std::string("OVERTAKING");
+    break;
+  default:
+    break;
+  }
 }
 
 void print_situation(const colregs_t &sit) {

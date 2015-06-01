@@ -1,6 +1,7 @@
 #include "ros/ros.h"
 #include <ros/console.h>
 #include <vector>
+#include <ctime>
 
 #include "nav_msgs/OccupancyGrid.h"
 #include "asv_msgs/StateArray.h"
@@ -88,8 +89,12 @@ void VelocityObstacleNode::start()
 {
   ros::Rate loop_rate(10.0);
 
+  clock_t tick, tock;
   while (ros::ok())
     {
+      // For timing of algorithm: uncomment!
+      //tick = clock();
+
       vo_->update();
       vo_->getBestControlInput(cmd_vel_.linear.x, cmd_vel_.angular.y);
 
@@ -97,6 +102,8 @@ void VelocityObstacleNode::start()
       mk_pub_->publish(marker_);
       cmd_pub_->publish(cmd_vel_);
 
+      //tock = clock();
+      //ROS_INFO("Loop speed: %.2f ms", ((float) (tock-tick)/CLOCKS_PER_SEC * 1e3 ));
       ros::spinOnce();
       loop_rate.sleep();
     }
