@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>asv_ctrl_vo</name>
-  <version>1.0.0</version>
+  <version>1.1</version>
   <description>The asv_ctrl_vo package</description>
 
   <maintainer email="stenersen.thomas@gmail.com">Thomas Stenersen</maintainer>
