@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>asv_obstacle_tracker</name>
-  <version>1.1</version>
+  <version>1.1.0</version>
   <description>The asv_obstacle_tracker package</description>
 
   <maintainer email="stenersen.thomas@gmail.com">Thomas Stenersen</maintainer>

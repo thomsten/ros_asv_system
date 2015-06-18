@@ -38,11 +38,11 @@
         args="-d $(find asv_simulator)/config/rviz/three_vessels.rviz" />
 
 
-  <!-- <node pkg="rosbag" -->
-  <!--       type="record" -->
-  <!--       name="rosbag_record" -->
-  <!--       args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/head_on_and_crossing_waves.bag /asv/state /asv/wave_noise /obstacle_states /obstacles/ship1/state /obstacles/ship1/wave_noise /obstacles/ship2/state /obstacles/ship2/wave_noise" -->
-  <!--       /> -->
+  <node pkg="rosbag"
+        type="record"
+        name="rosbag_record"
+        args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/head_on_and_crossing_waves2.bag /asv/state /asv/wave_noise /obstacle_states /obstacles/ship1/state /obstacles/ship1/wave_noise /obstacles/ship2/state /obstacles/ship2/wave_noise"
+        />
 
 
   <!-- <node pkg="rosbag" -->

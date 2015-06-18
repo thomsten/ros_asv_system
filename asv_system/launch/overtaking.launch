@@ -1,7 +1,7 @@
 <launch>
   <include file="$(find asv_simulator)/launch/default.launch">
     <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/asv_overtaking.yaml" />
-    <arg name="initial_state" value="[-150.0, 150.0, 0, 1.,0.,0.]" />
+    <arg name="initial_state" value="[-150.0, 150.0, 0.0, 3.0, 0.,0.]" />
     <arg name="u_d" value="3.0" />
   </include>
 
@@ -12,7 +12,7 @@
     <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship1.urdf" />
     <arg name="namespace" value="obstacles/ship1" />
     <arg name="shipname" value="ship1" />
-    <arg name="initial_state" value="[-100.0, 150.0, 0, 1.,0.,0.]" />
+    <arg name="initial_state" value="[-130.0, 155.0, 0, 2.,0.,0.]" />
     <arg name="u_d" value="1.0" />
   </include>
 
@@ -23,9 +23,9 @@
         name="rviz"
         args="-d $(find asv_simulator)/config/rviz/two_vessels.rviz" />
 
-  <node pkg="rosbag"
-        type="record"
-        name="rosbag_record"
-        args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/overtaking.bag /asv/state /obstacles/ship1/state"
-        />
+  <!-- <node pkg="rosbag" -->
+  <!--       type="record" -->
+  <!--       name="rosbag_record" -->
+  <!--       args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/overtaking.bag /asv/state /obstacles/ship1/state" -->
+  <!--       /> -->
 </launch>

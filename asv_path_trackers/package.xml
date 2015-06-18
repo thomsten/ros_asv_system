@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>asv_path_trackers</name>
-  <version>1.1</version>
+  <version>1.1.0</version>
   <description>The asv_path_trackers package</description>
 
   <maintainer email="stenersen.thomas@gmail.com">Thomas Stenersen</maintainer>

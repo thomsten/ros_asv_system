@@ -5,20 +5,20 @@
   </include>
 
   <include file="$(find asv_system)/launch/mapserver.launch">
-    <arg name="mapfile" value="$(find asv_system)/config/maps/big_block.yaml" />
+    <arg name="mapfile" value="$(find asv_system)/config/maps/center_dot.yaml" />
   </include>
   
   <!-- Obstacle ship -->
-  <include file="$(find asv_simulator)/launch/default.launch">
-    <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/north_to_south.yaml" />
-    <arg name="use_vo" value="False" />
-    <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship1.urdf" />
-    <arg name="namespace" value="obstacles/ship1" />
-    <arg name="shipname" value="ship1" />
-    <arg name="initial_state" value="[0.0, 500.0, -1.57, 1.,0.,0.]" />
-  </include>
+  <!-- <include file="$(find asv_simulator)/launch/default.launch"> -->
+  <!--   <arg name="waypoint_file" value="$(find asv_simulator)/config/waypoints/north_to_south.yaml" /> -->
+  <!--   <arg name="use_vo" value="False" /> -->
+  <!--   <arg name="vessel_model_file" value="$(find asv_simulator)/config/models/ship1.urdf" /> -->
+  <!--   <arg name="namespace" value="obstacles/ship1" /> -->
+  <!--   <arg name="shipname" value="ship1" /> -->
+  <!--   <arg name="initial_state" value="[0.0, 500.0, -1.57, 1.,0.,0.]" /> -->
+  <!-- </include> -->
 
-  <include file="$(find asv_obstacle_tracker)/launch/default.launch"/>
+  <!-- <include file="$(find asv_obstacle_tracker)/launch/default.launch"/> -->
 
   
   <node pkg="rviz"
@@ -29,6 +29,6 @@
   <node pkg="rosbag"
         type="record"
         name="rosbag_record"
-        args="-O /home/thomsten/ROSdev/catkin_ws/src/asv_system/bagfiles/test_static_obstacle.bag /asv/state /obstacles/ship1/state"
+        args="-O /home/thomas/Dropbox/NTNU/master/code/python/bagfiles/static_obstacle_oscillations.bag /asv/state"
         />
 </launch>
